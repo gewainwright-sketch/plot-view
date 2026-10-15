@@ -315,6 +315,14 @@ button, input, select { font: inherit; color: inherit; }
 .floor-set { position: absolute; z-index: 6; transform: translate(-50%, -50%); box-shadow: 0 2px 8px rgba(0,0,0,.25); }
 .floor-set[hidden] { display: none; }
 .dim-list { display: flex; flex-direction: column; gap: 3px; font-size: 12.5px; }   /* 05v */
+.lz { display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--line, #d5ddd7); padding-top: 8px; margin-top: 4px; }   /* 15a */
+.lz h4 { margin: 0; font-size: 13px; }
+.lz .lz-row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.lz .lz-step { font-size: 13px; line-height: 1.35; padding: 6px 8px; border-radius: 6px; background: rgba(31, 79, 168, 0.08); }
+.lz .lz-read { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.lz .lz-read .up { color: #b45309; } .lz .lz-read .ok { color: #1f7a3a; }
+.lz .lz-list { font-size: 12px; font-variant-numeric: tabular-nums; display: flex; flex-direction: column; gap: 2px; max-height: 9em; overflow: auto; }
+.lz input[type=number] { width: 6.5em; }
 .dim-list .dim { display: flex; gap: 8px; align-items: center; font-variant-numeric: tabular-nums; }
 .dim-list .dim button { padding: 2px 8px; font-size: 12px; }
 #btnDimAdd.on, #btnInspPick.on { background: var(--accent, #1f5f7a); color: #fff; }
@@ -750,6 +758,18 @@ button, input, select { font: inherit; color: inherit; }
           <button type="button" class="btn quiet" id="btnDimAdd" title="Tap one point, then another: the distance across and along the house, and straight">Add a distance</button>
         </div>
         <div class="dim-list" id="dimList"></div>
+        <div class="lz" id="lzPanel" hidden>
+          <h4>Laser measuring</h4>
+          <div class="lz-row"><button type="button" class="btn" id="btnLzConnect">Connect the laser</button><button type="button" class="btn quiet" id="btnLzFire" disabled title="The laser's own button: first tap aims, second measures">Fire</button><span id="lzStatus" class="hint-inline">Not connected</span></div>
+          <label class="lz-row">Measure <select id="lzMode"><option value="title">Check the Land Registry title</option><option value="sketch">Draw my boundary from scratch</option></select></label>
+          <div class="lz-row" id="lzSketchRow"><button type="button" class="btn quiet" id="btnLzSketch">Sketch corners</button><button type="button" class="btn quiet" id="btnLzSketchClear">Clear sketch</button></div>
+          <div class="lz-step" id="lzStep">Place the house first.</div>
+          <div class="lz-read" id="lzRead"></div>
+          <div class="lz-row"><button type="button" class="btn" id="btnLzAccept" disabled>Accept</button><button type="button" class="btn quiet" id="btnLzRetake" disabled>Retake</button><button type="button" class="btn quiet" id="btnLzSkip">Skip</button></div>
+          <div class="lz-row"><input type="number" id="lzType" step="0.001" min="0" inputmode="decimal" placeholder="metres"><button type="button" class="btn quiet" id="btnLzType">Use typed reading</button></div>
+          <div class="lz-row"><select id="lzHold"><option value="touch">Laser touching the corner</option><option value="chest">Laser held at my chest</option></select><input type="number" id="lzOff" step="1" min="0" max="100" inputmode="numeric" title="How far the laser's back is behind the corner, in cm">cm<button type="button" class="btn quiet" id="btnLzCal">Calibrate</button></div>
+          <div class="lz-list" id="lzList"></div>
+        </div>
         <div class="field" id="compassRow">Top of the plan faces (compass bearing, optional)
           <span style="display:flex;gap:6px;flex-wrap:wrap;align-items:center"><input type="number" id="planTop" min="0" max="360" step="1" inputmode="numeric" placeholder="degrees" style="width:7em">
           <button type="button" class="btn quiet" id="btnCompass">Read the compass</button>
@@ -762,6 +782,8 @@ button, input, select { font: inherit; color: inherit; }
         <div class="scan-acts" id="freeNudge" hidden>
           <button type="button" class="btn quiet" data-nudge="r-" title="Turn the plan 0.5 degrees on the maps">&#x27F2; 0.5&deg;</button>
           <button type="button" class="btn quiet" data-nudge="r+" title="Turn the plan 0.5 degrees the other way">&#x27F3; 0.5&deg;</button>
+          <button type="button" class="btn quiet" data-nudge="q-" title="Turn the plan a quarter turn (90 degrees)">&#x27F2; 90&deg;</button>
+          <button type="button" class="btn quiet" data-nudge="q+" title="Turn the plan a quarter turn the other way">&#x27F3; 90&deg;</button>
           <button type="button" class="btn quiet" data-nudge="x-" title="Move the plan 0.1 m left on the maps">&larr;</button>
           <button type="button" class="btn quiet" data-nudge="x+" title="Move the plan 0.1 m right">&rarr;</button>
           <button type="button" class="btn quiet" data-nudge="y+" title="Move the plan 0.1 m up">&uarr;</button>
@@ -4819,7 +4841,7 @@ const EMBEDDED_PLAN = null;
 <script id="ui">
 (() => {
   'use strict';
-  const BUILD = '2026-10-05z';
+  const BUILD = '2026-10-15a';
   const $ = (id) => document.getElementById(id);
   const mapEl = $('map');
   // 05u: Set, inside a lifted floor once it is let go
@@ -5842,6 +5864,7 @@ const EMBEDDED_PLAN = null;
       floorPick: { use: S.show.floorUse == null ? null : S.show.floorUse, gone: (S.show.floorGone || []).slice() },
       floorsOver: S.show.floorsOver ? JSON.parse(JSON.stringify(S.show.floorsOver)) : null,   // 05u
       myDims: (S.show.myDims || []).map((d) => ({ a: { ...d.a }, b: { ...d.b } })),   // 05v
+      laser: S.show.laser ? JSON.parse(JSON.stringify(S.show.laser)) : null,   // 15a
     };
   }
   function pushUndo() {
@@ -5857,6 +5880,7 @@ const EMBEDDED_PLAN = null;
     S.src = sn.src; S.embedded = sn.embedded; S.plan = { ...sn.plan };
     if ('mapPin' in sn) S.mapPin = sn.mapPin ? { ...sn.mapPin } : null;
     if ('myDims' in sn) S.show.myDims = sn.myDims.map((d) => ({ a: { ...d.a }, b: { ...d.b } }));   // 05v
+    if ('laser' in sn) { S.show.laser = sn.laser ? JSON.parse(JSON.stringify(sn.laser)) : null; T.lzPending = null; }   // 15a
     if ('floorsOver' in sn) { S.show.floorsOver = sn.floorsOver ? JSON.parse(JSON.stringify(sn.floorsOver)) : null; T.lift = null; const fb = $('btnFloorSet'); if (fb) fb.hidden = true; if (PV.ready) sendFloors(); }   // 05u
     if (sn.floorPick) { const ch = S.show.floorUse !== sn.floorPick.use || JSON.stringify(S.show.floorGone || []) !== JSON.stringify(sn.floorPick.gone); S.show.floorUse = sn.floorPick.use; S.show.floorGone = sn.floorPick.gone.slice(); if (ch && sn.src) sn.src.ink = null; }
     S.calibrated = sn.calibrated; S.scaleMode = sn.scaleMode; S.refId = sn.refId;
@@ -10040,6 +10064,7 @@ const EMBEDDED_PLAN = null;
     }
     // 05u: the lifted floor, dragged onto the stack
     // 05v: a title picked; a distance laid
+    if (e.button === 0 && !T.space && S.src && T.lzSketching) { const w = s2w(mainVp(), pt.x, pt.y); pushUndo(); lzS().sketch.push({ x: +w.x.toFixed(3), y: +w.y.toFixed(3) }); save(); syncLaser(); requestRender(); return; }   // 15a
     if (e.button === 0 && !T.space && S.src && T.inspPick) { if (inspPickAt(pt)) { T.inspPick = false; syncInsp(); } return; }
     if (e.button === 0 && !T.space && S.src && T.dimMode) {
       const q = dimSnap(pt);
@@ -10844,6 +10869,7 @@ const EMBEDDED_PLAN = null;
   }
   function refresh() {
     renderPanel();
+    if (T.lzReady) syncLaser();   // 15a
     setHint();
     updateReadout(T.overMap ? T.lastPt : null);
     $('banner').hidden = !S.src || S.calibrated;
@@ -11890,7 +11916,7 @@ const EMBEDDED_PLAN = null;
     if (d.opts) S.opts = { snap: d.opts.snap !== false, ortho: d.opts.ortho !== false };
     if (d.show) S.show = { scan: d.show.scan !== false, walk: d.show.walk !== false, view: d.show.view === 'photo' ? 'photo' : 'heights', levels: d.show.levels === true, os: d.show.os !== false, planPic: d.show.planPic !== false };
     // 05d: the later settings kept too (map layers, lock, wall lines, compass, me, floors)
-    if (d.show) for (const k of ['houseLook', 'free', 'fl', 'lockHouse', 'guides', 'planTop', 'me', 'floorsOver', 'floorUse', 'floorGone', 'meSides', 'myDims']) if (d.show[k] !== undefined) S.show[k] = d.show[k];   // 05v: and George's own distances
+    if (d.show) for (const k of ['houseLook', 'free', 'fl', 'lockHouse', 'guides', 'planTop', 'me', 'floorsOver', 'floorUse', 'floorGone', 'meSides', 'myDims', 'laser']) if (d.show[k] !== undefined) S.show[k] = d.show[k];   // 05v: and George's own distances
     if (Array.isArray(d.traces)) {
       S.traces = d.traces.filter((t) => t && Array.isArray(t.pts) && KINDS[t.kind]).map((t) => ({
         id: t.id, kind: t.kind, name: String(t.name || ''), closed: !!t.closed, open: false,
@@ -13576,6 +13602,7 @@ async function postcodeCentroid(pc){
     }
     for (const d0 of S.show.myDims || []) legs(dimOf(d0.a, d0.b), '#b45309');
     if (T.dimMode && T.dimA) { const s = w2s(vp, T.dimA.x, T.dimA.y); c.save(); c.fillStyle = '#b45309'; c.beginPath(); c.arc(s.x, s.y, 5, 0, Math.PI * 2); c.fill(); c.restore(); }
+    drawLaser(c, vp);   // 15a
     // the north arrow, when the plan is on the map: grid north, turned as the plan is on it
     if (S.mapPin) {
       const th = S.mapPin.rot; const nx = Math.sin(th); const ny = Math.cos(th);   // grid north in plan metres
@@ -13595,7 +13622,240 @@ async function postcodeCentroid(pc){
       const b = document.createElement('button'); b.type = 'button'; b.className = 'btn quiet'; b.textContent = 'Delete'; b.addEventListener('click', () => { pushUndo(); S.show.myDims.splice(i, 1); save(); renderDims(); requestRender(); });
       r.append(s, b); box.append(r); });
   }
+  // ---------- 15a: the laser (Bosch GLM over Bluetooth) and guided measuring ----------
+  const LZ = { SVC: '02a6c0d0-0451-4000-b000-fb3210111989', CHR: '02a6c0d1-0451-4000-b000-fb3210111989', dev: null, chr: null, mode: null, audio: null };
+  // the laser's checksum: CRC-8, polynomial 0xA6, start 0xAA, over every byte (worked out from George's logs, 14 Oct 2026)
+  function lzCrc(bytes) { let c = 0xAA; for (const b0 of bytes) { c ^= b0; for (let k = 0; k < 8; k++) c = c & 0x80 ? ((c << 1) ^ 0xA6) & 0xFF : (c << 1) & 0xFF; } return c; }
+  function lzFrame(bytes) { return new Uint8Array([...bytes, lzCrc(bytes)]); }
+  // a message from the laser: a reading (st 06: the distance; st 2a: result, distance, angle), a mode change (st f2),
+  // the laser turned on to aim (st 02), or nothing we use
+  function lzParse(u8) {
+    if (!u8 || u8.length < 4) return null;
+    if (lzCrc(u8.subarray(0, u8.length - 1)) !== u8[u8.length - 1]) return { type: 'bad' };
+    if (u8[0] !== 0xC0 || u8[1] !== 0x55 || u8.length < 20) return null;
+    const dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength); const f = (o) => dv.getFloat32(o, true); const st = u8[3];
+    if (st === 0x06) { const v = f(7); return Number.isFinite(v) && v > 0 && v < 300 ? { type: 'reading', value: v, level: v, angle: null, slope: v, mode: LZ.mode } : null; }
+    if (st === 0x2a) { const res = f(7); const d = f(11); const a = f(15); if (!(d > 0 && d < 300 && Math.abs(a) <= 90)) return null; const r0 = (a * Math.PI) / 180;
+      return { type: 'reading', value: res, level: d * Math.cos(r0), angle: a, slope: d, rise: d * Math.sin(r0), mode: LZ.mode }; }
+    if (st === 0xf2) { const m = Math.round(f(7)); if (m >= 0 && m < 64) { LZ.mode = m; return { type: 'mode', mode: m }; } return null; }
+    if (st === 0x02) return { type: 'aim' };
+    return { type: 'other', st };
+  }
+  function lzHex(u8) { return Array.from(u8, (b0) => b0.toString(16).padStart(2, '0')).join(' '); }
+  function lzBeep() { try { LZ.audio = LZ.audio || new (window.AudioContext || window.webkitAudioContext)(); const o = LZ.audio.createOscillator(); const g = LZ.audio.createGain(); o.frequency.value = 1320; g.gain.value = 0.08; o.connect(g); g.connect(LZ.audio.destination); o.start(); o.stop(LZ.audio.currentTime + 0.12); } catch (_) { /* no sound */ } }
+  function lzSetStatus(s) { const el = $('lzStatus'); if (el) el.textContent = s; }
+  async function lzSend(bytes) { if (!LZ.chr) return false; const data = lzFrame(bytes); try { if (LZ.chr.writeValueWithResponse) await LZ.chr.writeValueWithResponse(data); else await LZ.chr.writeValue(data); return true; } catch (_) { return false; } }
+  async function lzConnect() {
+    if (window.top !== window) { toast('The laser can only connect when Plot view is opened from its own address, not inside claude.ai: gewainwright-sketch.github.io/plot-view/upload-1/ (in Bluefy on the iPad).'); return false; }
+    if (!navigator.bluetooth) { toast('This browser cannot use Bluetooth. On the iPad open Plot view in Bluefy; on a PC use Chrome or Edge.'); return false; }
+    try { try { LZ.audio = LZ.audio || new (window.AudioContext || window.webkitAudioContext)(); } catch (_) { /* no sound */ }
+      LZ.dev = await navigator.bluetooth.requestDevice({ filters: [{ services: [LZ.SVC] }, { namePrefix: 'GLM' }], optionalServices: [LZ.SVC] });
+    } catch (err) { toast(/cancel|NotFound/i.test(String(err && (err.name + err.message))) ? 'No laser chosen.' : `The Bluetooth list could not open: ${err.message || err}.`); return false; }
+    LZ.dev.addEventListener('gattserverdisconnected', () => { LZ.chr = null; lzSetStatus('Disconnected'); syncLaser(); });
+    try {
+      lzSetStatus('Connecting…');
+      const gatt = await LZ.dev.gatt.connect(); const svc = await gatt.getPrimaryService(LZ.SVC); LZ.chr = await svc.getCharacteristic(LZ.CHR);
+      LZ.chr.addEventListener('characteristicvaluechanged', (e) => { const v = e.target.value; lzIncoming(new Uint8Array(v.buffer, v.byteOffset, v.byteLength)); });
+      await LZ.chr.startNotifications(); await lzSend([0xC0, 0x55, 0x02, 0x01, 0x00]);
+      lzSetStatus(`Connected to ${LZ.dev.name || 'the laser'}`); syncLaser(); return true;
+    } catch (err) { LZ.chr = null; lzSetStatus('Not connected'); toast(`Could not connect: ${err.message || err}. Turn the laser off and on, then try again.`); syncLaser(); return false; }
+  }
+  const LZMODES = { 1: 'Length', 10: 'Indirect height' };
+  function lzIncoming(u8) {
+    const r = lzParse(u8); if (!r) return;
+    if (r.type === 'mode') { lzSetStatus(`Connected: mode ${LZMODES[r.mode] || r.mode}`); return; }
+    if (r.type === 'aim') { lzSetStatus('Laser on: aim, then fire again'); return; }
+    if (r.type === 'other') { T.lzNote = 'That reading came from a mode Plot view does not read yet: use Length, or Indirect height on a slope.'; syncLaser(); return; }
+    if (r.type === 'reading') lzReading(r);
+  }
+  // ---------- guided measuring
+  const LZ0 = () => ({ mode: 'title', hold: 'touch', off: 0.35, shots: [], skipped: [], sketch: [] });
+  function lzS() { if (!S.show.laser) S.show.laser = LZ0(); return S.show.laser; }   // for changes: kept with the job
+  function lzR() { return S.show.laser || LZ0(); }   // for reading: nothing kept until something is measured
+  function lzActive() { const L = lzR(); return !!(LZ.chr || T.lzSketching || T.lzPending || L.shots.length || L.sketch.length || T.lzShow); }
+  const lzLetter = (i) => String.fromCharCode(65 + (i % 26)) + (i >= 26 ? Math.floor(i / 26) : '');
+  const lzF = (v) => `${v.toFixed(2)} m`;
+  // the house corners and wall lines: from each corner, outwards along both wall lines (as the title distances)
+  function lzRays() {
+    const R = inspRing(); const O = titleHouse(); if (!R || !O) return [];
+    const out = []; const n = O.length;
+    for (let i = 0; i < n; i++) {
+      const p = O[i]; const a = O[(i + n - 1) % n]; const b0 = O[(i + 1) % n];
+      const L1 = Math.hypot(p.x - a.x, p.y - a.y); const L2 = Math.hypot(b0.x - p.x, b0.y - p.y); if (L1 < 1e-6 || L2 < 1e-6) continue;
+      [{ x: (p.x - a.x) / L1, y: (p.y - a.y) / L1 }, { x: (p.x - b0.x) / L2, y: (p.y - b0.y) / L2 }].forEach((d, j) => {
+        if (Core.insidePolygon(p.x + d.x * 0.05, p.y + d.y * 0.05, O)) return;
+        let best = null;
+        for (let k = 0; k < R.length; k++) { const s0 = R[k]; const s1 = R[(k + 1) % R.length]; const ex = s1.x - s0.x; const ey = s1.y - s0.y; const den = d.x * ey - d.y * ex; if (Math.abs(den) < 1e-9) continue;
+          const t = ((s0.x - p.x) * ey - (s0.y - p.y) * ex) / den; const s = ((s0.x - p.x) * d.y - (s0.y - p.y) * d.x) / den; if (t > 0.02 && s >= -1e-9 && s <= 1 + 1e-9 && (!best || t < best.t)) best = { t, side: k }; }
+        if (!best || best.t > 80) return;
+        out.push({ kind: 'ray', key: `r:${i}:${j}`, corner: i, a: { x: p.x, y: p.y }, dir: d, b: { x: p.x + d.x * best.t, y: p.y + d.y * best.t }, d: best.t, side: best.side });
+      });
+    }
+    return out;
+  }
+  // from scratch: two house corners per sketched corner, the pair meeting nearest a right angle, neither through the house
+  function lzSees(O, p, q) { for (let k = 1; k < 10; k++) { const t = k / 10; if (Core.insidePolygon(p.x + (q.x - p.x) * t, p.y + (q.y - p.y) * t, O)) return false; } return true; }
+  function lzStations(O, c) {
+    const ok = O.map((p, i) => ({ p, i })).filter((s) => lzSees(O, s.p, c) && Math.hypot(c.x - s.p.x, c.y - s.p.y) < 60);
+    let best = null;
+    for (let u = 0; u < ok.length; u++) for (let v = u + 1; v < ok.length; v++) {
+      const P = ok[u].p; const Q = ok[v].p; const ax = P.x - c.x; const ay = P.y - c.y; const bx = Q.x - c.x; const by = Q.y - c.y;
+      const sin = Math.abs(ax * by - ay * bx) / (Math.hypot(ax, ay) * Math.hypot(bx, by) || 1);
+      const sc = sin / (1 + (Math.hypot(ax, ay) + Math.hypot(bx, by)) / 40);
+      if (!best || sc > best.sc) best = { sc, a: ok[u], b: ok[v] };
+    }
+    return best;
+  }
+  function lzSolve(P, r1, Q, r2, near) {
+    const dx = Q.x - P.x; const dy = Q.y - P.y; const D = Math.hypot(dx, dy); if (D < 1e-6) return null;
+    const a = (r1 * r1 - r2 * r2 + D * D) / (2 * D); let h2 = r1 * r1 - a * a; if (h2 < 0) { if (h2 < -0.25 * D * D) return null; h2 = 0; }
+    const h0 = Math.sqrt(h2); const mx = P.x + (a * dx) / D; const my = P.y + (a * dy) / D;
+    const c1 = { x: mx + (h0 * -dy) / D, y: my + (h0 * dx) / D }; const c2 = { x: mx - (h0 * -dy) / D, y: my - (h0 * dx) / D };
+    return Math.hypot(c1.x - near.x, c1.y - near.y) <= Math.hypot(c2.x - near.x, c2.y - near.y) ? c1 : c2;
+  }
+  function lzShot(key) { return lzR().shots.find((s) => s.key === key) || null; }
+  function lzUsed(s) { return s.level - (s.hold === 'chest' ? s.off : 0); }   // the level distance from the corner itself
+  // the fixed corners of the sketch, from their two shots
+  function lzFixed() {
+    const L = lzR(); const O = titleHouse(); const out = [];
+    L.sketch.forEach((c, k) => {
+      const a = L.shots.find((s) => s.kind === 'tri' && s.k === k && s.n === 0); const b0 = L.shots.find((s) => s.kind === 'tri' && s.k === k && s.n === 1);
+      out.push(a && b0 ? lzSolve(a.from, lzUsed(a), b0.from, lzUsed(b0), c) : null);
+    });
+    return out;
+  }
+  function lzSteps() {
+    const L = lzR(); const O = titleHouse(); if (!O) return [];
+    if (L.mode === 'title') return lzRays().map((r) => ({ ...r, from: r.a, to: r.b, expect: r.d, label: lzLetter(r.corner) }));
+    const steps = []; const fixed = lzFixed();
+    L.sketch.forEach((c, k) => {
+      const st = lzStations(O, c); if (!st) return;
+      [st.a, st.b].forEach((s, n) => steps.push({ kind: 'tri', key: `t:${k}:${n}`, k, n, corner: s.i, from: { x: s.p.x, y: s.p.y }, to: fixed[k] || c, expect: Math.hypot((fixed[k] || c).x - s.p.x, (fixed[k] || c).y - s.p.y), label: lzLetter(s.i) }));
+    });
+    for (let k = 0; k < L.sketch.length; k++) { const j = (k + 1) % L.sketch.length; if (L.sketch.length < 3 && j === 0) continue;
+      if (fixed[k] && fixed[j]) steps.push({ kind: 'check', key: `c:${k}`, k, j, from: fixed[k], to: fixed[j], expect: Math.hypot(fixed[j].x - fixed[k].x, fixed[j].y - fixed[k].y) }); }
+    return steps;
+  }
+  function lzCurrent() {
+    const L = lzR(); const steps = lzSteps(); const done = new Set([...L.shots.map((s) => s.key), ...L.skipped]);
+    const i = steps.findIndex((s) => !done.has(s.key)); return { steps, i, step: i >= 0 ? steps[i] : null };
+  }
+  function lzText(st) {
+    const hold = lzR().hold === 'chest' ? 'laser at your chest, just behind it' : 'laser touching it';
+    if (!st) return null;
+    if (st.kind === 'ray') return `Stand at house corner ${st.label}, ${hold}. Aim along the wall line, away from the house, at the boundary. Land Registry says about ${lzF(st.expect)}.`;
+    if (st.kind === 'tri') return `Boundary corner ${st.k + 1}: stand at house corner ${st.label}, ${hold}, and aim at that corner. About ${lzF(st.expect)}.`;
+    return `Check: from boundary corner ${st.k + 1}, aim at corner ${st.j + 1}. It should read ${lzF(st.expect)}.`;
+  }
+  function lzReading(r) {
+    lzBeep();
+    if (T.lzCal) {   // calibrating the chest offset: first touching, then at the chest
+      if (T.lzCal === 1) { T.lzCalA = r.level; T.lzCal = 2; toast(`Touching: ${lzF(r.level)}. Now the same shot with the laser at your chest.`); }
+      else { const off = Math.max(0, r.level - T.lzCalA); T.lzCal = 0; lzS().off = +off.toFixed(3); lzS().hold = 'chest'; save(); toast(`Your chest offset is ${Math.round(off * 100)} cm.`); }
+      syncLaser(); return;
+    }
+    T.lzPending = r; T.lzNote = null; syncLaser(); requestRender();
+  }
+  function lzAccept() {
+    const r = T.lzPending; const cur = lzCurrent(); if (!r || !cur.step) return false;
+    const L = lzS(); const st = cur.step;
+    pushUndo();
+    const shot = { key: st.key, kind: st.kind, from: { x: st.from.x, y: st.from.y }, level: +r.level.toFixed(4), slope: r.slope != null ? +r.slope.toFixed(4) : null, angle: r.angle != null ? +r.angle.toFixed(2) : null, mode: r.mode != null ? r.mode : null, hold: L.hold, off: L.off, at: new Date().toISOString(), expect: +st.expect.toFixed(4) };
+    if (st.kind === 'ray') Object.assign(shot, { dir: { ...st.dir }, side: st.side, corner: st.corner });
+    if (st.kind === 'tri') Object.assign(shot, { k: st.k, n: st.n, corner: st.corner });
+    if (st.kind === 'check') Object.assign(shot, { k: st.k, j: st.j });
+    L.shots.push(shot); T.lzPending = null;
+    lzApply(); save(); syncLaser(); requestRender();
+    return true;
+  }
+  // the boundary from the measurements: the title's sides moved to the measured points, or the sketch's corners fixed
+  function lzApply() {
+    const L = lzS();
+    if (L.mode === 'title') {
+      const R = inspRing(); if (!R || !FM.mine) return;
+      const n = R.length; const lines = R.map((p, i) => { const q = R[(i + 1) % n]; return { p: { ...p }, d: { x: q.x - p.x, y: q.y - p.y }, measured: false }; });
+      for (let i = 0; i < n; i++) {
+        const pts = L.shots.filter((s) => s.kind === 'ray' && s.side === i).map((s) => ({ x: s.from.x + s.dir.x * lzUsed(s), y: s.from.y + s.dir.y * lzUsed(s) }));
+        if (!pts.length) continue;
+        const d = lines[i].d; const Ld = Math.hypot(d.x, d.y) || 1; const e = { x: d.x / Ld, y: d.y / Ld };
+        if (pts.length === 1) lines[i] = { p: pts[0], d: e, measured: true };
+        else { const pr = pts.map((q) => q.x * e.x + q.y * e.y); const lo = pts[pr.indexOf(Math.min(...pr))]; const hi = pts[pr.indexOf(Math.max(...pr))]; lines[i] = { p: lo, d: { x: hi.x - lo.x, y: hi.y - lo.y }, measured: true }; }
+      }
+      const meet = (A, B, orig) => { const den = A.d.x * B.d.y - A.d.y * B.d.x; if (Math.abs(den) < 1e-6 * Math.hypot(A.d.x, A.d.y) * Math.hypot(B.d.x, B.d.y)) { const Lb = B.d.x * B.d.x + B.d.y * B.d.y || 1; const t0 = ((orig.x - B.p.x) * B.d.x + (orig.y - B.p.y) * B.d.y) / Lb; return { x: B.p.x + B.d.x * t0, y: B.p.y + B.d.y * t0 }; }
+        const t = ((B.p.x - A.p.x) * B.d.y - (B.p.y - A.p.y) * B.d.x) / den; return { x: A.p.x + A.d.x * t, y: A.p.y + A.d.y * t }; };
+      const pts = R.map((q, i) => { const prev = lines[(i + n - 1) % n]; const cur = lines[i]; if (!prev.measured && !cur.measured) return { x: q.x, y: q.y }; return meet(prev, cur, q); });
+      let t = S.traces.find((x) => x.fromTitle === FM.mine.id);
+      if (!t) { t = { id: S.nextTraceId++, kind: 'plot', name: `Title ${FM.mine.id}`, pts: [], closed: true, open: false, fromTitle: FM.mine.id }; S.traces.push(t); }
+      t.pts = pts.map((q) => ({ x: +q.x.toFixed(3), y: +q.y.toFixed(3) })); t.measuredSides = lines.map((l, i) => (l.measured ? i : -1)).filter((i) => i >= 0);
+      refresh();
+      return;
+    }
+    if (L.sketch.length < 3) return;
+    const fixed = lzFixed();
+    let t = S.traces.find((x) => x.fromLaser);
+    if (!t) { t = { id: S.nextTraceId++, kind: 'plot', name: 'Measured boundary', pts: [], closed: true, open: false, fromLaser: true }; S.traces.push(t); }
+    t.pts = L.sketch.map((c, k) => { const q = fixed[k] || c; return { x: +q.x.toFixed(3), y: +q.y.toFixed(3) }; });
+    t.fixedCorners = fixed.map((q, k) => (q ? k : -1)).filter((k) => k >= 0);
+    refresh();
+  }
+  function syncLaser() {
+    const panel = $('lzPanel'); if (!panel) return;
+    panel.hidden = !S.src;
+    if (panel.hidden) return;
+    const L = lzR();
+    $('lzMode').value = L.mode; $('lzHold').value = L.hold; if (document.activeElement !== $('lzOff')) $('lzOff').value = Math.round(L.off * 100);
+    $('lzOff').disabled = L.hold !== 'chest';
+    $('lzSketchRow').hidden = L.mode !== 'sketch';
+    $('btnLzSketch').classList.toggle('on', !!T.lzSketching); $('btnLzSketch').textContent = T.lzSketching ? 'Done sketching' : 'Sketch corners';
+    $('btnLzFire').disabled = !LZ.chr; $('btnLzConnect').textContent = LZ.chr ? 'Connected' : 'Connect the laser';
+    const cur = lzCurrent(); const st = cur.step;
+    let msg;
+    if (!titleHouse()) msg = 'Find the house on the plan first: the measuring starts from its corners.';
+    else if (L.mode === 'title' && !(FM.mine && S.mapPin)) msg = 'Find the Land Registry titles and place the house in its title first, or choose Draw my boundary from scratch.';
+    else if (L.mode === 'sketch' && L.sketch.length < 3) msg = T.lzSketching ? `Tap the boundary corners in order round the plot (${L.sketch.length} so far).` : 'Tap Sketch corners, then tap roughly where each boundary corner is, in order round the plot.';
+    else if (!st) msg = cur.steps.length ? `All ${cur.steps.length} shots done.` : 'Nothing to measure from here.';
+    else msg = `Shot ${cur.i + 1} of ${cur.steps.length}: ${lzText(st)}`;
+    if (T.lzCal) msg = T.lzCal === 1 ? 'Calibrate: take a shot with the laser touching a corner.' : 'Calibrate: now the same shot with the laser at your chest.';
+    $('lzStep').textContent = msg;
+    const r = T.lzPending;
+    if (r && st) { const used = r.level - (L.hold === 'chest' ? L.off : 0); const diff = used - st.expect;
+      $('lzRead').innerHTML = `Reading ${lzF(used)}${r.angle != null ? ` <small>(level, ${r.angle.toFixed(1)}°)</small>` : ''} · <span class="${Math.abs(diff) < 0.05 ? 'ok' : 'up'}">${diff >= 0 ? '+' : '−'}${Math.abs(diff).toFixed(2)} m</span>`; }
+    else $('lzRead').textContent = T.lzNote || (r ? `Reading ${lzF(r.level)}` : '');
+    $('btnLzAccept').disabled = !(r && st); $('btnLzRetake').disabled = !r; $('btnLzSkip').disabled = !st;
+    const box = $('lzList'); box.innerHTML = '';
+    L.shots.slice().reverse().slice(0, 30).forEach((s) => { const d = document.createElement('div'); const used = lzUsed(s); const diff = used - s.expect;
+      d.textContent = `${s.kind === 'ray' ? `From ${lzLetter(s.corner)} along the wall` : s.kind === 'tri' ? `Corner ${s.k + 1} from ${lzLetter(s.corner)}` : `Check ${s.k + 1} to ${s.j + 1}`}: ${lzF(used)} (${diff >= 0 ? '+' : '−'}${Math.abs(diff).toFixed(2)})`; box.appendChild(d); });
+  }
+  function drawLaser(c, vp) {
+    const panel = $('lzPanel'); if (!panel || panel.hidden || !lzActive()) return;
+    const L = lzR(); const O = titleHouse(); if (!O) return;
+    c.save();
+    c.font = `700 11px ${FONT}`; c.textAlign = 'center'; c.textBaseline = 'middle';
+    O.forEach((p, i) => { const s = w2s(vp, p.x, p.y); c.fillStyle = 'rgba(255,255,255,0.9)'; c.beginPath(); c.arc(s.x, s.y, 8, 0, Math.PI * 2); c.fill(); c.fillStyle = '#1f4fa8'; c.fillText(lzLetter(i), s.x, s.y + 0.5); });
+    if (L.mode === 'sketch') {
+      const fixed = lzFixed();
+      L.sketch.forEach((q, k) => { const s = w2s(vp, q.x, q.y); c.strokeStyle = '#1f4fa8'; c.lineWidth = 1.5; c.setLineDash([3, 3]); c.beginPath(); c.arc(s.x, s.y, 9, 0, Math.PI * 2); c.stroke(); c.setLineDash([]); c.fillStyle = '#1f4fa8'; c.fillText(String(k + 1), s.x, s.y - 16);
+        if (fixed[k]) { const f = w2s(vp, fixed[k].x, fixed[k].y); c.fillStyle = '#1f7a3a'; c.beginPath(); c.arc(f.x, f.y, 5, 0, Math.PI * 2); c.fill(); } });
+    }
+    for (const s0 of L.shots) if (s0.kind === 'ray') { const q = { x: s0.from.x + s0.dir.x * lzUsed(s0), y: s0.from.y + s0.dir.y * lzUsed(s0) }; const s = w2s(vp, q.x, q.y); c.fillStyle = '#1f7a3a'; c.beginPath(); c.arc(s.x, s.y, 4.5, 0, Math.PI * 2); c.fill(); }
+    const t = S.traces.find((x) => (L.mode === 'title' ? FM.mine && x.fromTitle === FM.mine.id : x.fromLaser));
+    if (t && L.mode === 'title' && t.measuredSides) { c.strokeStyle = '#1f7a3a'; c.lineWidth = 4; c.globalAlpha = 0.7; for (const i of t.measuredSides) { const a = t.pts[i]; const b0 = t.pts[(i + 1) % t.pts.length]; if (!a || !b0) continue; const A = w2s(vp, a.x, a.y); const B = w2s(vp, b0.x, b0.y); c.beginPath(); c.moveTo(A.x, A.y); c.lineTo(B.x, B.y); c.stroke(); } c.globalAlpha = 1; }
+    const st = lzCurrent().step;
+    if (st) {
+      const A = w2s(vp, st.from.x, st.from.y); const B = w2s(vp, st.to.x, st.to.y);
+      c.strokeStyle = '#dc2626'; c.lineWidth = 2.4; c.setLineDash([8, 5]); c.beginPath(); c.moveTo(A.x, A.y); c.lineTo(B.x, B.y); c.stroke(); c.setLineDash([]);
+      c.fillStyle = '#dc2626'; c.beginPath(); c.arc(B.x, B.y, 4.5, 0, Math.PI * 2); c.fill();
+      // me: a person at the corner
+      const ux = B.x - A.x; const uy = B.y - A.y; const Lu = Math.hypot(ux, uy) || 1; const mx = A.x - (ux / Lu) * 24; const my = A.y - (uy / Lu) * 24;
+      c.fillStyle = '#1f4fa8'; c.strokeStyle = '#ffffff'; c.lineWidth = 2; c.beginPath(); c.arc(mx, my, 9, 0, Math.PI * 2); c.fill(); c.stroke();
+      c.fillStyle = '#ffffff'; c.font = `700 9px ${FONT}`; c.fillText('ME', mx, my + 0.5);
+      T.lzDrawn = { from: { ...st.from }, to: { ...st.to } };
+    } else T.lzDrawn = null;
+    c.restore();
+  }
+  T.lzReady = true;   // everything above is set up: refresh() may sync the panel from here on
   function syncInsp() {
+    syncLaser();   // 15a
     const has = !!(FM.pack && FM.mine);
     $('btnInspPick').hidden = !(FM.pack && FM.pack.inspire && S.mapPin);
     $('inspOpts').hidden = !(has && S.mapPin);
@@ -13620,6 +13880,20 @@ async function postcodeCentroid(pc){
   });
   $('inspWhere').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('btnInspFind').click(); } });
   $('btnInspPick').addEventListener('click', () => { T.inspPick = !T.inspPick; T.dimMode = false; syncInsp(); if (T.inspPick) toast(T.inspPlaced ? 'Tap where the house is, in the title that is this property: the house moves there.' : 'Tap inside the title that is this property.'); });
+  // 15a: laser measuring
+  $('btnLzConnect').addEventListener('click', () => { T.lzShow = true; requestRender(); if (!LZ.chr) lzConnect(); });
+  $('btnLzFire').addEventListener('click', () => { lzSend([0xC0, 0x56, 0x01, 0x00]); });
+  $('lzMode').addEventListener('change', (e) => { pushUndo(); T.lzShow = true; lzS().mode = e.target.value; T.lzPending = null; T.lzSketching = false; save(); syncLaser(); requestRender(); });
+  $('btnLzSketch').addEventListener('click', () => { T.lzSketching = !T.lzSketching; T.dimMode = false; T.inspPick = false; if (!T.lzSketching) { lzApply(); save(); } syncLaser(); requestRender(); });
+  $('btnLzSketchClear').addEventListener('click', () => { pushUndo(); const L = lzS(); L.sketch = []; L.shots = L.shots.filter((s) => s.kind === 'ray'); L.skipped = L.skipped.filter((k) => k.startsWith('r:')); save(); syncLaser(); requestRender(); });
+  $('btnLzAccept').addEventListener('click', () => lzAccept());
+  $('btnLzRetake').addEventListener('click', () => { T.lzPending = null; syncLaser(); });
+  $('btnLzSkip').addEventListener('click', () => { const st = lzCurrent().step; if (!st) return; pushUndo(); lzS().skipped.push(st.key); T.lzPending = null; save(); syncLaser(); requestRender(); });
+  $('btnLzType').addEventListener('click', () => { const v = parseFloat($('lzType').value); if (!(v > 0 && v < 300)) { toast('Type the reading in metres, like 6.49.'); return; } $('lzType').value = ''; lzReading({ type: 'reading', value: v, level: v, angle: null, slope: v, mode: null, typed: true }); });
+  $('lzType').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('btnLzType').click(); } });
+  $('lzHold').addEventListener('change', (e) => { lzS().hold = e.target.value; save(); syncLaser(); });
+  $('lzOff').addEventListener('change', (e) => { const v = parseFloat(e.target.value); if (v >= 0 && v <= 100) { lzS().off = v / 100; save(); } syncLaser(); });
+  $('btnLzCal').addEventListener('click', () => { T.lzCal = T.lzCal ? 0 : 1; syncLaser(); });
   $('btnDimAdd').addEventListener('click', () => { T.dimMode = !T.dimMode; T.dimA = null; T.inspPick = false; syncInsp(); requestRender(); if (T.dimMode) toast('Tap where the distance starts, then where it ends: it snaps to the corners near the tap.'); });
   $('btnInspUse').addEventListener('click', () => { const t = useTitle(); if (t) toast(`Title ${FM.mine.id} is a plot shape now: tap a side to make it a wall, fence, hedge and so on.`); });
   ['inspRays', 'inspVecs', 'inspLens'].forEach((id) => $(id).addEventListener('change', () => requestRender()));
@@ -14071,8 +14345,9 @@ async function postcodeCentroid(pc){
     const at = (p) => ({ e: pin.e0 + Math.cos(pin.rot) * p.x - Math.sin(pin.rot) * p.y, n: pin.n0 + Math.sin(pin.rot) * p.x + Math.cos(pin.rot) * p.y });
     const locked = Number.isFinite(pin.lock); const vr = viewRot();
     const K = at(cen); const sK = w2s(mainVp(), cen.x, cen.y);   // 05x: where the house's middle is on the map and on screen
-    if (kind[0] === 'r') {
-      const keep = at(cen); pin.rot += (kind[1] === '+' ? -1 : 1) * 0.5 * Math.PI / 180;
+    if (kind[0] === 'q') pushUndo();   // 14a: a quarter turn is one Undo
+    if (kind[0] === 'r' || kind[0] === 'q') {
+      const keep = at(cen); pin.rot += (kind[1] === '+' ? -1 : 1) * (kind[0] === 'q' ? 90 : 0.5) * Math.PI / 180;
       const now = at(cen); pin.e0 += keep.e - now.e; pin.n0 += keep.n - now.n;
     } else {
       const d = kind[1] === '+' ? 0.1 : -0.1; let v = kind[0] === 'x' ? { x: d, y: 0 } : { x: 0, y: d };
@@ -14512,6 +14787,18 @@ async function postcodeCentroid(pc){
     inspPostcode(pc) { return inspPostcode(pc); },
     viewRot() { return viewRot(); },
     redDot() { requestRender(); return T.redDot || null; },
+    laserParse(hex) { const u8 = new Uint8Array(hex.trim().split(/\s+/).map((x) => parseInt(x, 16))); const r = lzParse(u8); return r; },
+    laserFrame(bytes) { return lzHex(lzFrame(bytes)); },
+    laserIncoming(hex) { lzIncoming(new Uint8Array(hex.trim().split(/\s+/).map((x) => parseInt(x, 16)))); return { pending: T.lzPending || null, mode: LZ.mode }; },
+    laserFeed(level, angle) { lzReading({ type: 'reading', value: level, level, angle: angle == null ? null : angle, slope: level, mode: null }); return T.lzPending; },
+    laserAccept() { return lzAccept(); },
+    laserSkip() { $('btnLzSkip').click(); return lzCurrent().i; },
+    laserSteps() { return lzSteps().map((s) => ({ kind: s.kind, key: s.key, from: s.from, to: s.to, expect: s.expect, label: s.label || null, k: s.k, side: s.side })); },
+    laserCurrent() { const c0 = lzCurrent(); return { i: c0.i, n: c0.steps.length, step: c0.step ? { kind: c0.step.kind, key: c0.step.key, from: c0.step.from, to: c0.step.to, expect: c0.step.expect, dir: c0.step.dir || null, side: c0.step.side } : null, text: $('lzStep').textContent, read: $('lzRead').textContent }; },
+    laserState() { return JSON.parse(JSON.stringify(lzR())); },
+    laserSet(o) { T.lzShow = true; Object.assign(lzS(), o); syncLaser(); requestRender(); return lzS(); },
+    laserTrace() { const L = lzR(); const t = S.traces.find((x) => (L.mode === 'title' ? FM.mine && x.fromTitle === FM.mine.id : x.fromLaser)); return t ? JSON.parse(JSON.stringify(t)) : null; },
+    laserDrawn() { requestRender(); return T.lzDrawn || null; },
     roadSide() { return T.roadSide || null; },
     packAt() { return FM.pack ? FM.pack.at || null : null; },
     setJobPlot(p) { T.jobPlot = p; },

@@ -96,6 +96,14 @@
     </ol>
   </section>
 
+  <section class="note" id="extras">
+    <h2>Battery and experiments</h2>
+    <p class="sub">Once connected. Battery asks the laser for a battery reading and what it says about itself. Try commands sends test messages: watch the laser's screen after each one and note what changes (if a setting changes, set it back on the laser).</p>
+    <div class="row" style="margin-top:8px"><button type="button" id="btnBattery" disabled>Battery</button></div>
+    <div class="row" style="margin-top:8px" id="tryRow"></div>
+    <div class="row" style="margin-top:8px"><input id="tryHex" placeholder="c0 56 01 00" style="font:inherit;padding:10px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--fg);min-width:0;flex:1"><button type="button" id="btnTryHex" disabled>Send</button></div>
+  </section>
+
   <section>
     <div class="head"><span class="label">Readings this session</span></div>
     <table>
@@ -147,6 +155,24 @@
       else log(`     (not a finished reading: status ${u8[3].toString(16).padStart(2, '0')}, value ${Number.isFinite(m) ? m.toFixed(4) : '?'})`);
     }
   }
+  // the laser's checksum: CRC-8, polynomial 0xA6, start 0xAA (worked out from the logs)
+  function crc(bytes) { let c = 0xAA; for (const b0 of bytes) { c ^= b0; for (let k = 0; k < 8; k++) c = c & 0x80 ? ((c << 1) ^ 0xA6) & 0xFF : (c << 1) & 0xFF; } return c; }
+  const TRY = [
+    ['Read distance (after one Fire)', [0xC0, 0x40, 0x00]],
+    ['Status block again', [0xC0, 0x55, 0x02, 0x01, 0x00]],
+    ['Button code 1', [0xC0, 0x56, 0x01, 0x01]], ['Button code 2', [0xC0, 0x56, 0x01, 0x02]], ['Button code 3', [0xC0, 0x56, 0x01, 0x03]],
+    ['Button code 4', [0xC0, 0x56, 0x01, 0x04]], ['Button code 5', [0xC0, 0x56, 0x01, 0x05]], ['Button code 6', [0xC0, 0x56, 0x01, 0x06]],
+    ['Settings query', [0xC0, 0x53, 0x00]], ['Device query', [0xC0, 0x06, 0x00]],
+  ];
+  async function sendFramed(bytes, what) { await send([...bytes, crc(bytes)], what); }
+  async function battery() {
+    if (!dev || !dev.gatt.connected) { log('battery: connect first'); return; }
+    try { const s = await dev.gatt.getPrimaryService('battery_service'); const c = await s.getCharacteristic('battery_level'); const v = await c.readValue(); log(`battery: ${v.getUint8(0)} % (standard battery reading)`); }
+    catch (err) { log('battery: no standard battery reading (' + (err.message || err) + ')'); }
+    try { const s = await dev.gatt.getPrimaryService('device_information'); const cs = await s.getCharacteristics(); for (const c of cs) { try { const v = await c.readValue(); log(`device info ${c.uuid.slice(4, 8)}: ${new TextDecoder().decode(v)} [${hex(new Uint8Array(v.buffer))}]`); } catch (_) {} } }
+    catch (err) { log('device info: none (' + (err.message || err) + ')'); }
+    try { const all = await dev.gatt.getPrimaryServices(); log('services it lets this page see: ' + all.map((x) => x.uuid).join(', ')); } catch (_) {}
+  }
   async function send(bytes, what) {
     if (!chr) return;
     const data = new Uint8Array(bytes);
@@ -163,8 +189,8 @@
     const wait = setTimeout(() => { log('no answer from the device list after 20 s: if a device was picked, this browser did not pass it to the page (likely because the page runs inside another page\'s frame)'); say('The device list did not hand the laser to this page. Open the test from its own web address instead (see the steps from Claude).'); }, 20000);
     try {
       const base = [{ services: [SVC] }, { namePrefix: 'GLM' }, { namePrefix: 'Bosch' }];
-      const req = (filters) => navigator.bluetooth.requestDevice({ filters, optionalServices: [SVC] });
-      if (all) dev = await navigator.bluetooth.requestDevice({ acceptAllDevices: true, optionalServices: [SVC] });
+      const req = (filters) => navigator.bluetooth.requestDevice({ filters, optionalServices: [SVC, 'battery_service', 'device_information'] });
+      if (all) dev = await navigator.bluetooth.requestDevice({ acceptAllDevices: true, optionalServices: [SVC, 'battery_service', 'device_information'] });
       else if (only) dev = await req(only);
       else {
         // Bosch's maker number (0x02A6) as well, where the browser takes it: then only Bosch devices are listed
@@ -197,11 +223,14 @@
       await chr.startNotifications(); log('listening');
       await send(SYNC, 'send each measurement');
       setStatus(`Connected to ${dev.name || 'the laser'}: take a measurement`, 'on');
-      $('btnLaser').disabled = false;
+      $('btnLaser').disabled = false; $('btnBattery').disabled = false; $('btnTryHex').disabled = false; document.querySelectorAll('.tryb').forEach((x) => { x.disabled = false; });
     } catch (err) { log('connect failed: ' + (err.message || err)); setStatus('Not connected', ''); say('Could not connect: ' + (err.message || err) + '. Turn the laser off and on, then try again.'); }
   }
   $('btnConnect').addEventListener('click', () => { try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); } catch (_) {} connect(false); });
   $('btnAll').addEventListener('click', () => connect(true));
+  $('btnBattery').addEventListener('click', battery);
+  TRY.forEach(([name, bytes]) => { const b0 = document.createElement('button'); b0.type = 'button'; b0.textContent = name; b0.disabled = true; b0.className = 'tryb'; b0.addEventListener('click', () => sendFramed(bytes, 'try: ' + name)); $('tryRow').appendChild(b0); });
+  $('btnTryHex').addEventListener('click', () => { const bytes = $('tryHex').value.trim().split(/[\s,]+/).filter(Boolean).map((x) => parseInt(x, 16)); if (!bytes.length || bytes.some((x) => !(x >= 0 && x < 256))) { say('Type bytes in hex, like c0 56 01 00 (the checksum is added for you).'); return; } sendFramed(bytes, 'try: typed'); });
   // ---------- Find my laser: every device heard, and which ones come and go as the laser's Bluetooth is switched
   const seen = new Map(); let scan = null; let tick = null;
   function shortId(id) { return String(id || '').replace(/[^A-Za-z0-9]/g, '').slice(0, 6) || '?'; }
