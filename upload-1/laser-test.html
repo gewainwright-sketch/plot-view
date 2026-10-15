@@ -101,6 +101,8 @@
     <p class="sub">Once connected. Battery asks the laser for a battery reading and what it says about itself. Try commands sends test messages: watch the laser's screen after each one and note what changes (if a setting changes, set it back on the laser).</p>
     <div class="row" style="margin-top:8px"><button type="button" id="btnBattery" disabled>Battery</button></div>
     <div class="row" style="margin-top:8px" id="tryRow"></div>
+    <div class="row" style="margin-top:8px"><button type="button" id="btnScan" disabled>Scan commands</button><button type="button" id="btnScanStop" disabled>Stop scan</button></div>
+    <p class="sub" id="scanNote">Scan asks the laser every command number in turn (about 2 minutes) and logs the ones it answers. Run it, change one setting on the laser (back out to the measuring screen), run it again: what changed is listed at the end. Small risk: an unknown command could reset the laser's settings.</p>
     <div class="row" style="margin-top:8px"><input id="tryHex" placeholder="c0 56 01 00" style="font:inherit;padding:10px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--fg);min-width:0;flex:1"><button type="button" id="btnTryHex" disabled>Send</button></div>
   </section>
 
@@ -127,6 +129,7 @@
   const LASER = [0xC0, 0x56, 0x01, 0x00, 0x1E];         // the laser's own button: first press aims, second measures (George's GLM 100-25 C, 14 Oct 2026)
   const $ = (id) => document.getElementById(id);
   let dev = null, chr = null, n = 0, audio = null, quiet = 0;
+  let scanning = false, scanStop = false, scanBuf = [];
   const lines = [];
   const hex = (u8) => Array.from(u8, (b) => b.toString(16).padStart(2, '0')).join(' ');
   const stamp = () => new Date().toTimeString().slice(0, 8);
@@ -147,6 +150,7 @@
   function onData(e) {
     const v = e.target.value; const u8 = new Uint8Array(v.buffer, v.byteOffset, v.byteLength);
     if (u8.length === 4 && u8[0] === 0xC0 && u8[1] === 0x11) { quiet++; if (quiet % 30 === 1) log(`in   ${hex(u8)}  (still connected: sent every 1.5 s, not all shown)`); return; }
+    if (scanning) { if (u8[0] !== 0xC0) scanBuf.push(...u8); return; }   // a scan collects replies quietly
     log('in   ' + hex(u8));
     if (u8.length >= 4 && u8[0] === 0xC0 && u8[1] === 0x55 && u8[3] === 0x02) { setStatus('Laser on: aim, then fire again to measure', 'warn'); }
     if (u8.length >= 11 && u8[0] === 0xC0 && u8[1] === 0x55) {
@@ -165,6 +169,42 @@
     ['Settings query', [0xC0, 0x53, 0x00]], ['Device query', [0xC0, 0x06, 0x00]],
   ];
   async function sendFramed(bytes, what) { await send([...bytes, crc(bytes)], what); }
+  // Scan: every command number with no data (except the three known to act: 0x54 write settings, 0x55 sending switch,
+  // 0x56 the button); replies gathered for 450 ms; compared with the last scan kept on this iPad
+  const SKIP = new Set([0x54, 0x55, 0x56]);
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  async function cmdScan() {
+    if (!chr || scanning) return;
+    scanning = true; scanStop = false; $('btnScan').disabled = true; $('btnScanStop').disabled = false;
+    const res = {}; let refused = 0, silent = 0, stoppedAt = null;
+    log('scan: start (every command 00 to ff, about 2 minutes; keep the laser still and on)');
+    for (let k = 0; k <= 0xFF; k++) {
+      if (scanStop) { stoppedAt = k; break; }
+      if (!chr || !dev || !dev.gatt.connected) { stoppedAt = k; log(`scan: the laser disconnected just after command ${(k - 1).toString(16).padStart(2, '0')}`); break; }
+      if (SKIP.has(k)) continue;
+      setStatus(`Scanning: command ${k.toString(16).padStart(2, '0')} of ff`, 'warn');
+      scanBuf = [];
+      const b = [0xC0, k, 0x00]; const data = new Uint8Array([...b, crc(b)]);
+      try { if (chr.writeValueWithResponse) await chr.writeValueWithResponse(data); else await chr.writeValue(data); } catch (err) { res[k] = 'send failed'; continue; }
+      await wait(450);
+      const r = hex(scanBuf);
+      if (!scanBuf.length) silent++;
+      else if (scanBuf[0] === 0x06) refused++;
+      else res[k] = r;
+    }
+    scanning = false; $('btnScan').disabled = !chr; $('btnScanStop').disabled = true;
+    const keys = Object.keys(res).map(Number);
+    log(`scan: ${keys.length} answered, ${refused} refused, ${silent} no answer${stoppedAt != null ? ` (stopped at ${stoppedAt.toString(16).padStart(2, '0')})` : ''}`);
+    for (const k of keys) log(`scan ${k.toString(16).padStart(2, '0')}: ${res[k]}`);
+    let prev = null; try { prev = JSON.parse(localStorage.getItem('glmScan') || 'null'); } catch (_) { prev = null; }
+    if (prev) {
+      const all = new Set([...Object.keys(prev), ...keys.map(String)]); let nd = 0;
+      for (const k of all) { const a = prev[k] || '(nothing)'; const c = res[k] || '(nothing)'; if (a !== c && stoppedAt == null) { nd++; log(`CHANGED ${(+k).toString(16).padStart(2, '0')}: before ${a}  now ${c}`); } }
+      log(nd ? `scan: ${nd} answer${nd === 1 ? '' : 's'} changed since the last scan` : 'scan: nothing changed since the last scan');
+    }
+    if (stoppedAt == null) { try { localStorage.setItem('glmScan', JSON.stringify(res)); } catch (_) { /* not kept */ } }
+    setStatus(chr ? 'Connected: scan finished' : 'Disconnected', chr ? 'on' : 'warn');
+  }
   async function battery() {
     if (!dev || !dev.gatt.connected) { log('battery: connect first'); return; }
     try { const s = await dev.gatt.getPrimaryService('battery_service'); const c = await s.getCharacteristic('battery_level'); const v = await c.readValue(); log(`battery: ${v.getUint8(0)} % (standard battery reading)`); }
@@ -207,7 +247,7 @@
     }
     clearTimeout(wait);
     log(`chosen: ${dev.name || '(no name)'}  id ${dev.id}`);
-    dev.addEventListener('gattserverdisconnected', () => { setStatus('Disconnected: tap Connect to join again', 'warn'); chr = null; $('btnLaser').disabled = true; log('disconnected'); });
+    dev.addEventListener('gattserverdisconnected', () => { setStatus('Disconnected: tap Connect to join again', 'warn'); chr = null; $('btnLaser').disabled = true; $('btnScan').disabled = true; log('disconnected'); });
     try {
       setStatus('Connecting…', 'warn');
       const gatt = await dev.gatt.connect(); log('connected');
@@ -223,12 +263,14 @@
       await chr.startNotifications(); log('listening');
       await send(SYNC, 'send each measurement');
       setStatus(`Connected to ${dev.name || 'the laser'}: take a measurement`, 'on');
-      $('btnLaser').disabled = false; $('btnBattery').disabled = false; $('btnTryHex').disabled = false; document.querySelectorAll('.tryb').forEach((x) => { x.disabled = false; });
+      $('btnLaser').disabled = false; $('btnBattery').disabled = false; $('btnTryHex').disabled = false; $('btnScan').disabled = false; document.querySelectorAll('.tryb').forEach((x) => { x.disabled = false; });
     } catch (err) { log('connect failed: ' + (err.message || err)); setStatus('Not connected', ''); say('Could not connect: ' + (err.message || err) + '. Turn the laser off and on, then try again.'); }
   }
   $('btnConnect').addEventListener('click', () => { try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); } catch (_) {} connect(false); });
   $('btnAll').addEventListener('click', () => connect(true));
   $('btnBattery').addEventListener('click', battery);
+  $('btnScan').addEventListener('click', cmdScan);
+  $('btnScanStop').addEventListener('click', () => { scanStop = true; });
   TRY.forEach(([name, bytes]) => { const b0 = document.createElement('button'); b0.type = 'button'; b0.textContent = name; b0.disabled = true; b0.className = 'tryb'; b0.addEventListener('click', () => sendFramed(bytes, 'try: ' + name)); $('tryRow').appendChild(b0); });
   $('btnTryHex').addEventListener('click', () => { const bytes = $('tryHex').value.trim().split(/[\s,]+/).filter(Boolean).map((x) => parseInt(x, 16)); if (!bytes.length || bytes.some((x) => !(x >= 0 && x < 256))) { say('Type bytes in hex, like c0 56 01 00 (the checksum is added for you).'); return; } sendFramed(bytes, 'try: typed'); });
   // ---------- Find my laser: every device heard, and which ones come and go as the laser's Bluetooth is switched

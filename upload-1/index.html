@@ -4851,7 +4851,7 @@ const EMBEDDED_PLAN = null;
 <script id="ui">
 (() => {
   'use strict';
-  const BUILD = '2026-10-15b';
+  const BUILD = '2026-10-15c';
   const $ = (id) => document.getElementById(id);
   const mapEl = $('map');
   // 05u: Set, inside a lifted floor once it is let go
@@ -8879,7 +8879,16 @@ const EMBEDDED_PLAN = null;
     } catch (err) {
       if (err && err.code === 'declined') return false;
     }
-    if (saveBySheet()) { offerSave(name, blob); return true; }   // 15b: Bluefy and other iPad browsers drop downloads
+    if (saveBySheet()) {   // 15b: Bluefy and other iPad browsers drop downloads
+      try {   // 15c: straight to the share sheet from the Save tap where the iPad allows it
+        const file = new File([blob], name, { type: blob.type || 'application/octet-stream' });
+        if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
+          await navigator.share({ files: [file], title: name });
+          T.saveOffer = { name, blob, size: blob.size, how: 'direct' }; toast(`Saved ${name}.`); return true;
+        }
+      } catch (err) { if (err && err.name === 'AbortError') { toast('Not saved: the sheet was closed. Tap Save again.'); T.saveOffer = { name, blob, size: blob.size, how: 'cancel' }; return false; } }
+      offerSave(name, blob); return true;
+    }
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -11987,6 +11996,10 @@ const EMBEDDED_PLAN = null;
         noSnap: t.noSnap ? true : undefined,   // 05p: snapping off for this shape
         pinned: t.pinned ? true : undefined,
         pinTo: t.pinTo != null ? t.pinTo : undefined,
+        fromTitle: t.fromTitle != null ? String(t.fromTitle) : undefined,
+        measuredSides: Array.isArray(t.measuredSides) ? t.measuredSides.filter(Number.isInteger) : undefined,
+        fromLaser: t.fromLaser ? true : undefined,
+        fixedCorners: Array.isArray(t.fixedCorners) ? t.fixedCorners.filter(Number.isInteger) : undefined,
       })).filter((t) => t.pts.length);
       S.nextTraceId = Math.max(d.nextTraceId || 1, ...S.traces.map((t) => t.id + 1));
     }
@@ -13829,20 +13842,11 @@ async function postcodeCentroid(pc){
     const L = lzS();
     if (L.mode === 'title') {
       const R = inspRing(); if (!R || !FM.mine) return;
-      const n = R.length; const lines = R.map((p, i) => { const q = R[(i + 1) % n]; return { p: { ...p }, d: { x: q.x - p.x, y: q.y - p.y }, measured: false }; });
-      for (let i = 0; i < n; i++) {
-        const pts = L.shots.filter((s) => s.kind === 'ray' && s.side === i).map((s) => ({ x: s.from.x + s.dir.x * lzUsed(s), y: s.from.y + s.dir.y * lzUsed(s) }));
-        if (!pts.length) continue;
-        const d = lines[i].d; const Ld = Math.hypot(d.x, d.y) || 1; const e = { x: d.x / Ld, y: d.y / Ld };
-        if (pts.length === 1) lines[i] = { p: pts[0], d: e, measured: true };
-        else { const pr = pts.map((q) => q.x * e.x + q.y * e.y); const lo = pts[pr.indexOf(Math.min(...pr))]; const hi = pts[pr.indexOf(Math.max(...pr))]; lines[i] = { p: lo, d: { x: hi.x - lo.x, y: hi.y - lo.y }, measured: true }; }
-      }
-      const meet = (A, B, orig) => { const den = A.d.x * B.d.y - A.d.y * B.d.x; if (Math.abs(den) < 1e-6 * Math.hypot(A.d.x, A.d.y) * Math.hypot(B.d.x, B.d.y)) { const Lb = B.d.x * B.d.x + B.d.y * B.d.y || 1; const t0 = ((orig.x - B.p.x) * B.d.x + (orig.y - B.p.y) * B.d.y) / Lb; return { x: B.p.x + B.d.x * t0, y: B.p.y + B.d.y * t0 }; }
-        const t = ((B.p.x - A.p.x) * B.d.y - (B.p.y - A.p.y) * B.d.x) / den; return { x: A.p.x + A.d.x * t, y: A.p.y + A.d.y * t }; };
-      const pts = R.map((q, i) => { const prev = lines[(i + n - 1) % n]; const cur = lines[i]; if (!prev.measured && !cur.measured) return { x: q.x, y: q.y }; return meet(prev, cur, q); });
-      let t = S.traces.find((x) => x.fromTitle === FM.mine.id);
+      const pts = lzTitleFit(R, L.shots.filter((s) => s.kind === 'ray'), lzUsed);
+      const lines = pts.measured;
+      let t = lzTitleTrace();
       if (!t) { t = { id: S.nextTraceId++, kind: 'plot', name: `Title ${FM.mine.id}`, pts: [], closed: true, open: false, fromTitle: FM.mine.id }; S.traces.push(t); }
-      t.pts = pts.map((q) => ({ x: +q.x.toFixed(3), y: +q.y.toFixed(3) })); t.measuredSides = lines.map((l, i) => (l.measured ? i : -1)).filter((i) => i >= 0);
+      t.pts = pts.map((q) => ({ x: +q.x.toFixed(3), y: +q.y.toFixed(3) })); t.measuredSides = lines.slice();
       refresh();
       return;
     }
@@ -13853,6 +13857,66 @@ async function postcodeCentroid(pc){
     t.pts = L.sketch.map((c, k) => { const q = fixed[k] || c; return { x: +q.x.toFixed(3), y: +q.y.toFixed(3) }; });
     t.fixedCorners = fixed.map((q, k) => (q ? k : -1)).filter((k) => k >= 0);
     refresh();
+  }
+  // 15c: the title's sides as straight runs (pieces in line are one side), each moved through its measured points;
+  // corners re-met only where the two runs cross near the old corner, otherwise put square onto the measured line
+  function lzTitleFit(R, shots, used) {
+    const n = R.length; const ang = (i) => { const q = R[(i + 1) % n]; return Math.atan2(q.y - R[i].y, q.x - R[i].x); };
+    const len = (i) => { const q = R[(i + 1) % n]; return Math.hypot(q.x - R[i].x, q.y - R[i].y); };
+    const inLine = (i, j) => { let d = Math.abs(ang(i) - ang(j)) % (2 * Math.PI); if (d > Math.PI) d = 2 * Math.PI - d; return d < 12 * Math.PI / 180; };
+    // runs: sides in line with the one before AND with the run's longest side so far (so a rounded corner drawn in
+    // many short pieces is not flattened into one straight side); start where the ring turns most
+    const out = R.map((q) => ({ x: q.x, y: q.y })); out.measured = [];
+    const turn = (i) => { let d = Math.abs(ang(i) - ang((i + n - 1) % n)) % (2 * Math.PI); return d > Math.PI ? 2 * Math.PI - d : d; };
+    let s0 = 0; for (let i = 1; i < n; i++) if (turn(i) > turn(s0)) s0 = i;
+    if (turn(s0) < 12 * Math.PI / 180) return out;
+    const runs = []; let cur = null; let ref = -1;
+    for (let k = 0; k < n; k++) { const i = (s0 + k) % n;
+      if (cur && inLine((i + n - 1) % n, i) && inLine(ref, i)) { cur.push(i); if (len(i) > len(ref)) ref = i; }
+      else { cur = [i]; ref = i; runs.push(cur); } }
+    const runOf = new Array(n); runs.forEach((r, k) => r.forEach((i) => { runOf[i] = k; }));
+    const lines = runs.map((r) => { const a0 = R[r[0]]; const b0 = R[(r[r.length - 1] + 1) % n]; let dx = b0.x - a0.x, dy = b0.y - a0.y;
+      if (Math.hypot(dx, dy) < 1e-6) { const q = R[(r[0] + 1) % n]; dx = q.x - a0.x; dy = q.y - a0.y; }
+      const L0 = Math.hypot(dx, dy) || 1; return { p: { x: a0.x, y: a0.y }, d: { x: dx / L0, y: dy / L0 }, measured: false, len: r.reduce((s, i) => s + len(i), 0) }; });
+    lines.forEach((ln, k) => {
+      const ps = shots.filter((s) => runOf[s.side] === k).map((s) => ({ x: s.from.x + s.dir.x * used(s), y: s.from.y + s.dir.y * used(s) }));
+      if (!ps.length) return;
+      const e = ln.d; const pr = ps.map((q) => q.x * e.x + q.y * e.y);
+      const lo = ps[pr.indexOf(Math.min(...pr))]; const hi = ps[pr.indexOf(Math.max(...pr))]; const sp = Math.max(...pr) - Math.min(...pr);
+      // two points 3 m or more apart (and not turning the side by more than 8 degrees) set its slant; otherwise the title's slant is kept
+      let d = e; if (ps.length > 1 && sp > 3) { const dd = { x: (hi.x - lo.x) / Math.hypot(hi.x - lo.x, hi.y - lo.y), y: (hi.y - lo.y) / Math.hypot(hi.x - lo.x, hi.y - lo.y) }; if (Math.abs(dd.x * e.y - dd.y * e.x) < Math.sin(8 * Math.PI / 180)) d = dd; }
+      const mid = { x: ps.reduce((s, q) => s + q.x, 0) / ps.length, y: ps.reduce((s, q) => s + q.y, 0) / ps.length };
+      lines[k] = { p: d === e ? mid : lo, d, measured: true, len: ln.len };
+    });
+    const proj = (Ln, q) => { const t = (q.x - Ln.p.x) * Ln.d.x + (q.y - Ln.p.y) * Ln.d.y; return { x: Ln.p.x + Ln.d.x * t, y: Ln.p.y + Ln.d.y * t }; };
+    const shift = (Ln, q) => { const p2 = proj(Ln, q); return Math.hypot(p2.x - q.x, p2.y - q.y); };
+    for (let i = 0; i < n; i++) {
+      const kc = runOf[i]; const kp = runOf[(i + n - 1) % n]; const C = lines[kc]; const P = lines[kp]; const q = R[i];
+      if (kc === kp) { if (C.measured) out[i] = proj(C, q); continue; }   // a corner part-way along a straight side
+      if (!C.measured && !P.measured) continue;
+      const den = P.d.x * C.d.y - P.d.y * C.d.x; let m = null;
+      if (Math.abs(den) > Math.sin(20 * Math.PI / 180)) { const t = ((C.p.x - P.p.x) * C.d.y - (C.p.y - P.p.y) * C.d.x) / den; m = { x: P.p.x + P.d.x * t, y: P.p.y + P.d.y * t }; }
+      // two lines moved by a and b crossing at angle th move their corner at most (a + b) / sin th: more means a bad crossing
+      const room = 0.1 + 1.2 * ((C.measured ? shift(C, q) : 0) + (P.measured ? shift(P, q) : 0)) / Math.max(Math.abs(den), 1e-9);
+      // with one side unmeasured the corner slides along that side: never further than the side is long (a short piece of a
+      // rounded corner is not stretched out across the plot)
+      const reach = C.measured && P.measured ? room : Math.min(room, 0.1 + (C.measured ? P.len : C.len));
+      if (m && Math.hypot(m.x - q.x, m.y - q.y) <= reach) { out[i] = m; continue; }
+      // the two sides nearly in line or crossing far away: put the corner square onto the measured line(s)
+      if (C.measured && P.measured) { const a1 = proj(C, q); const b1 = proj(P, q); out[i] = { x: (a1.x + b1.x) / 2, y: (a1.y + b1.y) / 2 }; }
+      else out[i] = proj(C.measured ? C : P, q);
+    }
+    out.measured = []; for (let i = 0; i < n; i++) if (lines[runOf[i]].measured) out.measured.push(i);
+    T.lzFit = { runs: runs.length, moved: Math.max(...out.map((q, i) => Math.hypot(q.x - R[i].x, q.y - R[i].y))) };
+    return out;
+  }
+  // 15c: the title's shape; one saved before 15c lost its link on reload, and the one named after the title is it
+  function lzTitleTrace() {
+    if (!FM.mine) return null;
+    const id = String(FM.mine.id);
+    let t = S.traces.find((x) => x.fromTitle != null && String(x.fromTitle) === id);
+    if (!t) { t = S.traces.find((x) => x.kind === 'plot' && x.fromTitle == null && x.name === `Title ${id}`) || null; if (t) t.fromTitle = FM.mine.id; }
+    return t;
   }
   function syncLaser() {
     const panel = $('lzPanel'); if (!panel) return;
@@ -13894,7 +13958,7 @@ async function postcodeCentroid(pc){
         if (fixed[k]) { const f = w2s(vp, fixed[k].x, fixed[k].y); c.fillStyle = '#1f7a3a'; c.beginPath(); c.arc(f.x, f.y, 5, 0, Math.PI * 2); c.fill(); } });
     }
     for (const s0 of L.shots) if (s0.kind === 'ray') { const q = { x: s0.from.x + s0.dir.x * lzUsed(s0), y: s0.from.y + s0.dir.y * lzUsed(s0) }; const s = w2s(vp, q.x, q.y); c.fillStyle = '#1f7a3a'; c.beginPath(); c.arc(s.x, s.y, 4.5, 0, Math.PI * 2); c.fill(); }
-    const t = S.traces.find((x) => (L.mode === 'title' ? FM.mine && x.fromTitle === FM.mine.id : x.fromLaser));
+    const t = L.mode === 'title' ? lzTitleTrace() : S.traces.find((x) => x.fromLaser);
     if (t && L.mode === 'title' && t.measuredSides) { c.strokeStyle = '#1f7a3a'; c.lineWidth = 4; c.globalAlpha = 0.7; for (const i of t.measuredSides) { const a = t.pts[i]; const b0 = t.pts[(i + 1) % t.pts.length]; if (!a || !b0) continue; const A = w2s(vp, a.x, a.y); const B = w2s(vp, b0.x, b0.y); c.beginPath(); c.moveTo(A.x, A.y); c.lineTo(B.x, B.y); c.stroke(); } c.globalAlpha = 1; }
     const st = lzCurrent().step;
     if (st) {
@@ -14853,9 +14917,11 @@ async function postcodeCentroid(pc){
     laserCurrent() { const c0 = lzCurrent(); return { i: c0.i, n: c0.steps.length, step: c0.step ? { kind: c0.step.kind, key: c0.step.key, from: c0.step.from, to: c0.step.to, expect: c0.step.expect, dir: c0.step.dir || null, side: c0.step.side } : null, text: $('lzStep').textContent, read: $('lzRead').textContent }; },
     laserState() { return JSON.parse(JSON.stringify(lzR())); },
     laserSet(o) { T.lzShow = true; Object.assign(lzS(), o); syncLaser(); requestRender(); return lzS(); },
-    laserTrace() { const L = lzR(); const t = S.traces.find((x) => (L.mode === 'title' ? FM.mine && x.fromTitle === FM.mine.id : x.fromLaser)); return t ? JSON.parse(JSON.stringify(t)) : null; },
+    laserTrace() { const L = lzR(); const t = L.mode === 'title' ? lzTitleTrace() : S.traces.find((x) => x.fromLaser); return t ? JSON.parse(JSON.stringify(t)) : null; },
     laserDrawn() { requestRender(); return T.lzDrawn || null; },
     roadSide() { return T.roadSide || null; },
+    titleFit(R, shots) { const r = lzTitleFit(R, shots, (s) => s.level); return { pts: r.map((q) => ({ x: q.x, y: q.y })), measured: r.measured.slice(), fit: T.lzFit || null }; },
+    laserApply() { lzApply(); return T.lzFit || null; },
     saveSheet(on) { if (on !== undefined) T.forceSaveSheet = on; return { sheet: saveBySheet(), offer: T.saveOffer ? { name: T.saveOffer.name, size: T.saveOffer.size, how: T.saveOffer.how } : null, open: $('saveDlg').open }; },
     packAt() { return FM.pack ? FM.pack.at || null : null; },
     setJobPlot(p) { T.jobPlot = p; },
