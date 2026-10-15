@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+</head>
+<body>
+<title>Laser Link Test</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+  /* layout: one narrow column, the reading big at the top, controls under it, the raw log last */
+  :root {
+    --bg: #f3f5f2; --panel: #ffffff; --fg: #1d2421; --muted: #5d6a63; --line: #d5ddd7;
+    --accent: #0f6b4f; --accent-fg: #ffffff; --laser: #d42a1f; --ok: #1f7a3a; --warn: #9a5b00;
+    --f-display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+    --f-body: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --f-mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+    --bg: #121714; --panel: #1a211d; --fg: #e7eee9; --muted: #9aa9a0; --line: #2c3631;
+    --accent: #3fbf8f; --accent-fg: #0c1410; --laser: #ff5a4c; --ok: #5fd384; --warn: #e7a648; color-scheme: dark } }
+  :root[data-theme="dark"] {
+    --bg: #121714; --panel: #1a211d; --fg: #e7eee9; --muted: #9aa9a0; --line: #2c3631;
+    --accent: #3fbf8f; --accent-fg: #0c1410; --laser: #ff5a4c; --ok: #5fd384; --warn: #e7a648; color-scheme: dark }
+  body { background: var(--bg); color: var(--fg); font-family: var(--f-body); font-size: 16px; line-height: 1.45; }
+  .wrap { max-width: 640px; margin: 0 auto; padding-block: 20px 40px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 16px; }
+  h1 { font-family: var(--f-display); font-weight: 600; font-size: 1.9rem; margin: 0; letter-spacing: .01em; text-wrap: balance; }
+  .sub { color: var(--muted); margin: 2px 0 0; }
+  .reading { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px 18px 14px; display: grid; gap: 6px; }
+  .label { font-size: .78rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+  .big { font-family: var(--f-display); font-weight: 600; font-size: clamp(3.4rem, 16vw, 5.6rem); line-height: 1; font-variant-numeric: tabular-nums; color: var(--fg); }
+  .big .unit { font-size: .38em; color: var(--muted); margin-left: .15em; }
+  .big.fresh { color: var(--laser); }
+  .status { display: flex; align-items: center; gap: 8px; font-size: .95rem; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); flex: none; }
+  .dot.on { background: var(--ok); } .dot.warn { background: var(--warn); }
+  .row { display: flex; flex-wrap: wrap; gap: 10px; }
+  button { font: inherit; font-weight: 600; border-radius: 8px; padding: 12px 16px; border: 1px solid var(--line); background: var(--panel); color: var(--fg); cursor: pointer; min-height: 48px; }
+  button.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+  button:disabled { opacity: .45; cursor: default; }
+  button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .note { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+  .note h2 { font-family: var(--f-display); font-weight: 600; font-size: 1.2rem; margin: 0 0 6px; }
+  .note ol { margin: 0; padding-left: 1.2em; display: grid; gap: 4px; }
+  .msg { padding: 12px 14px; border-radius: 8px; border: 1px solid var(--warn); color: var(--fg); background: var(--panel); }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: 7px 4px; border-bottom: 1px solid var(--line); }
+  th { font-size: .78rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 600; }
+  td.m { font-weight: 600; }
+  .ex td { color: var(--muted); font-style: italic; }
+  .logbox { overflow-x: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; max-height: 260px; overflow-y: auto; }
+  pre { margin: 0; font-family: var(--f-mono); font-size: .78rem; white-space: pre; }
+  .head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+  @media (prefers-reduced-motion: no-preference) { .big { transition: color .6s; } }
+</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600&family=Barlow+Condensed:wght@600&family=JetBrains+Mono&display=swap">
+
+<div class="wrap">
+  <header>
+    <h1>Laser Link Test</h1>
+    <p class="sub">Checks that a Bosch GLM 100-25 C can send its readings to this device over Bluetooth.</p>
+  </header>
+
+  <section class="reading" aria-live="polite">
+    <span class="label">Last reading</span>
+    <div class="big" id="big">–.–––<span class="unit">m</span></div>
+    <div class="status"><span class="dot" id="dot"></span><span id="status">Not connected</span></div>
+  </section>
+
+  <div class="row">
+    <button type="button" class="primary" id="btnConnect">Connect to the laser</button>
+    <button type="button" id="btnFind">Find my laser</button>
+    <button type="button" id="btnLaser" disabled>Fire from here</button>
+    <button type="button" id="btnAll">Show all devices</button>
+  </div>
+
+  <div class="msg" id="msg" hidden></div>
+
+  <section class="note" id="finder" hidden>
+    <div class="head"><h2>Find my laser</h2><button type="button" id="btnStopFind">Stop</button></div>
+    <p class="sub" id="findHint">Turn the laser's Bluetooth on, then off, then on, then off, about 5 seconds each time. The device that comes and goes with it rises to the top.</p>
+    <div class="logbox" style="max-height:none"><table>
+      <thead><tr><th>Device</th><th>Seen</th><th>Came and went</th><th>Signal</th></tr></thead>
+      <tbody id="findRows"><tr class="ex"><td>Waiting for devices…</td><td></td><td></td><td></td></tr></tbody>
+    </table></div>
+    <div class="row" style="margin-top:10px"><button type="button" class="primary" id="btnUseFound" disabled>Connect to the top one</button></div>
+  </section>
+
+  <section class="note">
+    <h2>How to test</h2>
+    <ol>
+      <li>Turn the laser on and switch its Bluetooth on (the Bluetooth symbol shows on its screen).</li>
+      <li>Tap <b>Connect to the laser</b>: the list shows only Bosch devices, so pick the one there (it may have no name). If the list is empty or full of other things, use <b>Find my laser</b>.</li>
+      <li>Take a measurement with the laser's own button, or with <b>Fire from here</b>: the first tap turns the laser on to aim, the second takes the reading, just like the laser's button.</li>
+      <li>Check it against the laser's screen, then tap <b>Copy the log</b> and paste it to Claude.</li>
+    </ol>
+  </section>
+
+  <section class="note" id="extras">
+    <h2>Battery and experiments</h2>
+    <p class="sub">Once connected. Battery asks the laser for a battery reading and what it says about itself. Try commands sends test messages: watch the laser's screen after each one and note what changes (if a setting changes, set it back on the laser).</p>
+    <div class="row" style="margin-top:8px"><button type="button" id="btnBattery" disabled>Battery</button></div>
+    <div class="row" style="margin-top:8px" id="tryRow"></div>
+    <div class="row" style="margin-top:8px"><button type="button" id="btnScan" disabled>Scan commands</button><button type="button" id="btnScanStop" disabled>Stop scan</button></div>
+    <p class="sub" id="scanNote">Scan asks the laser every command number in turn (about 2 minutes) and logs the ones it answers. Run it, change one setting on the laser (back out to the measuring screen), run it again: what changed is listed at the end. Small risk: an unknown command could reset the laser's settings.</p>
+    <div class="row" style="margin-top:8px"><input id="tryHex" placeholder="c0 56 01 00" style="font:inherit;padding:10px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--fg);min-width:0;flex:1"><button type="button" id="btnTryHex" disabled>Send</button></div>
+  </section>
+
+  <section>
+    <div class="head"><span class="label">Readings this session</span></div>
+    <table>
+      <thead><tr><th>#</th><th>Time</th><th>Distance</th><th>Status byte</th></tr></thead>
+      <tbody id="rows"><tr class="ex"><td>e.g.</td><td>10:42:07</td><td>6.493 m</td><td>06</td></tr></tbody>
+    </table>
+  </section>
+
+  <section>
+    <div class="head"><span class="label">What the laser sent (raw bytes)</span><button type="button" id="btnCopy">Copy the log</button></div>
+    <div class="logbox"><pre id="log">Nothing yet.</pre></div>
+  </section>
+</div>
+
+<script>
+(() => {
+  // Bosch GLM Bluetooth LE (as reported for the GLM 50 C / 100 C / 120 C; checked here on the 100-25 C)
+  const SVC = '02a6c0d0-0451-4000-b000-fb3210111989';
+  const CHR = '02a6c0d1-0451-4000-b000-fb3210111989';
+  const SYNC = [0xC0, 0x55, 0x02, 0x01, 0x00, 0x1A];    // send each measurement as it is taken
+  const LASER = [0xC0, 0x56, 0x01, 0x00, 0x1E];         // the laser's own button: first press aims, second measures (George's GLM 100-25 C, 14 Oct 2026)
+  const $ = (id) => document.getElementById(id);
+  let dev = null, chr = null, n = 0, audio = null, quiet = 0;
+  let scanning = false, scanStop = false, scanBuf = [];
+  const lines = [];
+  const hex = (u8) => Array.from(u8, (b) => b.toString(16).padStart(2, '0')).join(' ');
+  const stamp = () => new Date().toTimeString().slice(0, 8);
+  function log(s) { lines.push(`${stamp()}  ${s}`); if (lines.length > 400) lines.shift(); $('log').textContent = lines.join('\n'); const box = $('log').parentElement; box.scrollTop = box.scrollHeight; }
+  function say(s) { $('msg').hidden = !s; $('msg').textContent = s || ''; }
+  function setStatus(s, kind) { $('status').textContent = s; $('dot').className = 'dot' + (kind ? ' ' + kind : ''); }
+  function beep() {
+    try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); const o = audio.createOscillator(); const g = audio.createGain(); o.frequency.value = 1320; g.gain.value = 0.08; o.connect(g); g.connect(audio.destination); o.start(); o.stop(audio.currentTime + 0.12); } catch (_) { /* no sound */ }
+    try { navigator.vibrate && navigator.vibrate(60); } catch (_) { /* no vibration */ }
+  }
+  function reading(m, st) {
+    n++;
+    const big = $('big'); big.innerHTML = `${m.toFixed(3)}<span class="unit">m</span>`; big.classList.add('fresh'); setTimeout(() => big.classList.remove('fresh'), 900);
+    const tb = $('rows'); const ex = tb.querySelector('.ex'); if (ex) ex.remove();
+    const tr = document.createElement('tr'); tr.innerHTML = `<td>${n}</td><td>${stamp()}</td><td class="m">${m.toFixed(3)} m</td><td>${st.toString(16).padStart(2, '0')}</td>`; tb.prepend(tr);
+    beep();
+  }
+  function onData(e) {
+    const v = e.target.value; const u8 = new Uint8Array(v.buffer, v.byteOffset, v.byteLength);
+    if (u8.length === 4 && u8[0] === 0xC0 && u8[1] === 0x11) { quiet++; if (quiet % 30 === 1) log(`in   ${hex(u8)}  (still connected: sent every 1.5 s, not all shown)`); return; }
+    if (scanning) { if (u8[0] !== 0xC0) scanBuf.push(...u8); return; }   // a scan collects replies quietly
+    log('in   ' + hex(u8));
+    if (u8.length >= 4 && u8[0] === 0xC0 && u8[1] === 0x55 && u8[3] === 0x02) { setStatus('Laser on: aim, then fire again to measure', 'warn'); }
+    if (u8.length >= 11 && u8[0] === 0xC0 && u8[1] === 0x55) {
+      const m = new DataView(v.buffer, v.byteOffset, v.byteLength).getFloat32(7, true);
+      if (u8[3] === 0x06 && Number.isFinite(m) && m > 0 && m < 300) { log(`     = ${m.toFixed(4)} m`); reading(m, u8[3]); setStatus(`Connected to ${dev && dev.name || 'the laser'}: reading received`, 'on'); }
+      else log(`     (not a finished reading: status ${u8[3].toString(16).padStart(2, '0')}, value ${Number.isFinite(m) ? m.toFixed(4) : '?'})`);
+    }
+  }
+  // the laser's checksum: CRC-8, polynomial 0xA6, start 0xAA (worked out from the logs)
+  function crc(bytes) { let c = 0xAA; for (const b0 of bytes) { c ^= b0; for (let k = 0; k < 8; k++) c = c & 0x80 ? ((c << 1) ^ 0xA6) & 0xFF : (c << 1) & 0xFF; } return c; }
+  const TRY = [
+    ['Read distance (after one Fire)', [0xC0, 0x40, 0x00]],
+    ['Status block again', [0xC0, 0x55, 0x02, 0x01, 0x00]],
+    ['Button code 1', [0xC0, 0x56, 0x01, 0x01]], ['Button code 2', [0xC0, 0x56, 0x01, 0x02]], ['Button code 3', [0xC0, 0x56, 0x01, 0x03]],
+    ['Button code 4', [0xC0, 0x56, 0x01, 0x04]], ['Button code 5', [0xC0, 0x56, 0x01, 0x05]], ['Button code 6', [0xC0, 0x56, 0x01, 0x06]],
+    ['Settings query', [0xC0, 0x53, 0x00]], ['Device query', [0xC0, 0x06, 0x00]],
+  ];
+  async function sendFramed(bytes, what) { await send([...bytes, crc(bytes)], what); }
+  // Scan: every command number with no data (except the three known to act: 0x54 write settings, 0x55 sending switch,
+  // 0x56 the button); replies gathered for 450 ms; compared with the last scan kept on this iPad
+  const SKIP = new Set([0x54, 0x55, 0x56]);
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  async function cmdScan() {
+    if (!chr || scanning) return;
+    scanning = true; scanStop = false; $('btnScan').disabled = true; $('btnScanStop').disabled = false;
+    const res = {}; let refused = 0, silent = 0, stoppedAt = null;
+    log('scan: start (every command 00 to ff, about 2 minutes; keep the laser still and on)');
+    for (let k = 0; k <= 0xFF; k++) {
+      if (scanStop) { stoppedAt = k; break; }
+      if (!chr || !dev || !dev.gatt.connected) { stoppedAt = k; log(`scan: the laser disconnected just after command ${(k - 1).toString(16).padStart(2, '0')}`); break; }
+      if (SKIP.has(k)) continue;
+      setStatus(`Scanning: command ${k.toString(16).padStart(2, '0')} of ff`, 'warn');
+      scanBuf = [];
+      const b = [0xC0, k, 0x00]; const data = new Uint8Array([...b, crc(b)]);
+      try { if (chr.writeValueWithResponse) await chr.writeValueWithResponse(data); else await chr.writeValue(data); } catch (err) { res[k] = 'send failed'; continue; }
+      await wait(450);
+      const r = hex(scanBuf);
+      if (!scanBuf.length) silent++;
+      else if (scanBuf[0] === 0x06) refused++;
+      else res[k] = r;
+    }
+    scanning = false; $('btnScan').disabled = !chr; $('btnScanStop').disabled = true;
+    const keys = Object.keys(res).map(Number);
+    log(`scan: ${keys.length} answered, ${refused} refused, ${silent} no answer${stoppedAt != null ? ` (stopped at ${stoppedAt.toString(16).padStart(2, '0')})` : ''}`);
+    for (const k of keys) log(`scan ${k.toString(16).padStart(2, '0')}: ${res[k]}`);
+    let prev = null; try { prev = JSON.parse(localStorage.getItem('glmScan') || 'null'); } catch (_) { prev = null; }
+    if (prev) {
+      const all = new Set([...Object.keys(prev), ...keys.map(String)]); let nd = 0;
+      for (const k of all) { const a = prev[k] || '(nothing)'; const c = res[k] || '(nothing)'; if (a !== c && stoppedAt == null) { nd++; log(`CHANGED ${(+k).toString(16).padStart(2, '0')}: before ${a}  now ${c}`); } }
+      log(nd ? `scan: ${nd} answer${nd === 1 ? '' : 's'} changed since the last scan` : 'scan: nothing changed since the last scan');
+    }
+    if (stoppedAt == null) { try { localStorage.setItem('glmScan', JSON.stringify(res)); } catch (_) { /* not kept */ } }
+    setStatus(chr ? 'Connected: scan finished' : 'Disconnected', chr ? 'on' : 'warn');
+  }
+  async function battery() {
+    if (!dev || !dev.gatt.connected) { log('battery: connect first'); return; }
+    try { const s = await dev.gatt.getPrimaryService('battery_service'); const c = await s.getCharacteristic('battery_level'); const v = await c.readValue(); log(`battery: ${v.getUint8(0)} % (standard battery reading)`); }
+    catch (err) { log('battery: no standard battery reading (' + (err.message || err) + ')'); }
+    try { const s = await dev.gatt.getPrimaryService('device_information'); const cs = await s.getCharacteristics(); for (const c of cs) { try { const v = await c.readValue(); log(`device info ${c.uuid.slice(4, 8)}: ${new TextDecoder().decode(v)} [${hex(new Uint8Array(v.buffer))}]`); } catch (_) {} } }
+    catch (err) { log('device info: none (' + (err.message || err) + ')'); }
+    try { const all = await dev.gatt.getPrimaryServices(); log('services it lets this page see: ' + all.map((x) => x.uuid).join(', ')); } catch (_) {}
+  }
+  async function send(bytes, what) {
+    if (!chr) return;
+    const data = new Uint8Array(bytes);
+    try { if (chr.writeValueWithResponse) await chr.writeValueWithResponse(data); else await chr.writeValue(data); log(`out  ${hex(data)}  (${what})`); }
+    catch (err) { log(`out  ${hex(data)}  (${what}) failed: ${err.message || err}`); }
+  }
+  async function connect(all, only) {
+    say('');
+    if (!navigator.bluetooth) {
+      say('This browser cannot use Bluetooth. On a PC open this file in Chrome or Edge. On the iPad, Safari cannot do it: open the page in a Bluetooth browser app such as Bluefy.');
+      log('navigator.bluetooth is missing in this browser'); return;
+    }
+    log(all ? 'asking for the list of all devices…' : only ? 'asking for the device found…' : 'asking for the list of Bosch devices…');
+    const wait = setTimeout(() => { log('no answer from the device list after 20 s: if a device was picked, this browser did not pass it to the page (likely because the page runs inside another page\'s frame)'); say('The device list did not hand the laser to this page. Open the test from its own web address instead (see the steps from Claude).'); }, 20000);
+    try {
+      const base = [{ services: [SVC] }, { namePrefix: 'GLM' }, { namePrefix: 'Bosch' }];
+      const req = (filters) => navigator.bluetooth.requestDevice({ filters, optionalServices: [SVC, 'battery_service', 'device_information'] });
+      if (all) dev = await navigator.bluetooth.requestDevice({ acceptAllDevices: true, optionalServices: [SVC, 'battery_service', 'device_information'] });
+      else if (only) dev = await req(only);
+      else {
+        // Bosch's maker number (0x02A6) as well, where the browser takes it: then only Bosch devices are listed
+        try { dev = await req(base.concat([{ manufacturerData: [{ companyIdentifier: 0x02A6 }] }])); }
+        catch (e1) { if (e1 && e1.name === 'TypeError') { log('this browser cannot list by maker; listing by the Bosch service only'); dev = await req(base); } else throw e1; }
+      }
+    } catch (err) {
+      clearTimeout(wait);
+      const m = String(err && err.message || err);
+      if (/cancel/i.test(m) || err.name === 'NotFoundError') { log('no device chosen: ' + m); say('No laser was chosen. If it was not in the list, check its Bluetooth is on and try Show all devices.'); }
+      else if (err.name === 'SecurityError') { log('blocked: ' + m); say('Bluetooth is blocked on this page. Open the downloaded laser-link-test.html file instead (in Chrome or Edge on a PC, or a Bluetooth browser app on the iPad).'); }
+      else { log('request failed: ' + m); say('Could not open the Bluetooth list: ' + m); }
+      return;
+    }
+    clearTimeout(wait);
+    log(`chosen: ${dev.name || '(no name)'}  id ${dev.id}`);
+    dev.addEventListener('gattserverdisconnected', () => { setStatus('Disconnected: tap Connect to join again', 'warn'); chr = null; $('btnLaser').disabled = true; $('btnScan').disabled = true; log('disconnected'); });
+    try {
+      setStatus('Connecting…', 'warn');
+      const gatt = await dev.gatt.connect(); log('connected');
+      let svc;
+      try { svc = await gatt.getPrimaryService(SVC); }
+      catch (err) {
+        log('the Bosch service was not found: ' + (err.message || err));
+        try { const all2 = await gatt.getPrimaryServices(); log('services it has: ' + all2.map((s) => s.uuid).join(', ')); } catch (e2) { log('could not list its services: ' + (e2.message || e2)); }
+        setStatus('Connected, but not the laser data service', 'warn'); say('Connected, but the device does not offer the Bosch measurement service. Copy the log and paste it to Claude.'); return;
+      }
+      chr = await svc.getCharacteristic(CHR); log('measurement channel found; properties ' + ['broadcast','read','writeWithoutResponse','write','notify','indicate'].filter((k) => chr.properties && chr.properties[k]).join(', '));
+      chr.addEventListener('characteristicvaluechanged', onData);
+      await chr.startNotifications(); log('listening');
+      await send(SYNC, 'send each measurement');
+      setStatus(`Connected to ${dev.name || 'the laser'}: take a measurement`, 'on');
+      $('btnLaser').disabled = false; $('btnBattery').disabled = false; $('btnTryHex').disabled = false; $('btnScan').disabled = false; document.querySelectorAll('.tryb').forEach((x) => { x.disabled = false; });
+    } catch (err) { log('connect failed: ' + (err.message || err)); setStatus('Not connected', ''); say('Could not connect: ' + (err.message || err) + '. Turn the laser off and on, then try again.'); }
+  }
+  $('btnConnect').addEventListener('click', () => { try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); } catch (_) {} connect(false); });
+  $('btnAll').addEventListener('click', () => connect(true));
+  $('btnBattery').addEventListener('click', battery);
+  $('btnScan').addEventListener('click', cmdScan);
+  $('btnScanStop').addEventListener('click', () => { scanStop = true; });
+  TRY.forEach(([name, bytes]) => { const b0 = document.createElement('button'); b0.type = 'button'; b0.textContent = name; b0.disabled = true; b0.className = 'tryb'; b0.addEventListener('click', () => sendFramed(bytes, 'try: ' + name)); $('tryRow').appendChild(b0); });
+  $('btnTryHex').addEventListener('click', () => { const bytes = $('tryHex').value.trim().split(/[\s,]+/).filter(Boolean).map((x) => parseInt(x, 16)); if (!bytes.length || bytes.some((x) => !(x >= 0 && x < 256))) { say('Type bytes in hex, like c0 56 01 00 (the checksum is added for you).'); return; } sendFramed(bytes, 'try: typed'); });
+  // ---------- Find my laser: every device heard, and which ones come and go as the laser's Bluetooth is switched
+  const seen = new Map(); let scan = null; let tick = null;
+  function shortId(id) { return String(id || '').replace(/[^A-Za-z0-9]/g, '').slice(0, 6) || '?'; }
+  function onAdv(e) {
+    const d = e.device; const k = d.id; const now = performance.now();
+    let r = seen.get(k);
+    if (!r) { r = { id: k, name: d.name || e.name || '', first: now, last: now, on: true, flips: 0, rssi: e.rssi, makers: new Set(), uuids: new Set() }; seen.set(k, r); }
+    if (!r.on) { r.on = true; r.flips++; }
+    r.last = now; r.rssi = e.rssi; if (!r.name && (d.name || e.name)) r.name = d.name || e.name;
+    try { e.manufacturerData && e.manufacturerData.forEach((_, cid) => r.makers.add(cid)); } catch (_) {}
+    try { (e.uuids || []).forEach((u) => r.uuids.add(String(u))); } catch (_) {}
+  }
+  function drawFound() {
+    const now = performance.now();
+    for (const r of seen.values()) if (r.on && now - r.last > 4000) { r.on = false; r.flips++; }
+    const bosch = (r) => r.makers.has(0x02A6) || [...r.uuids].some((u) => u.toLowerCase().startsWith('02a6c0d0')) || /^GLM|bosch/i.test(r.name);
+    const list = [...seen.values()].sort((a, b) => (bosch(b) - bosch(a)) || (b.flips - a.flips) || ((b.rssi || -999) - (a.rssi || -999)));
+    const tb = $('findRows'); tb.innerHTML = '';
+    if (!list.length) tb.innerHTML = '<tr class="ex"><td>Waiting for devices…</td><td></td><td></td><td></td></tr>';
+    list.slice(0, 25).forEach((r, i) => {
+      const tr = document.createElement('tr'); if (i === 0 && (bosch(r) || r.flips >= 3)) tr.style.background = 'color-mix(in srgb, var(--accent) 16%, transparent)';
+      const label = (r.name || 'no name') + ` · ${shortId(r.id)}` + (bosch(r) ? ' · BOSCH' : '');
+      tr.innerHTML = `<td>${label.replace(/</g, '&lt;')}</td><td>${r.on ? 'now' : Math.round((now - r.last) / 1000) + ' s ago'}</td><td class="m">${r.flips}</td><td>${r.rssi != null ? r.rssi + ' dBm' : ''}</td>`;
+      tb.appendChild(tr);
+    });
+    const top = list[0]; $('btnUseFound').disabled = !(top && (bosch(top) || top.flips >= 3));
+    T_top = top || null;
+  }
+  let T_top = null;
+  async function startFind() {
+    say(''); $('finder').hidden = false;
+    if (!navigator.bluetooth || !navigator.bluetooth.requestLEScan) {
+      $('findHint').textContent = 'This browser cannot watch Bluetooth devices by itself. Use Connect to the laser: it lists only Bosch devices. In the list, the laser is the entry that appears and disappears as you switch its Bluetooth on and off.';
+      log('requestLEScan is not available in this browser'); return;
+    }
+    try {
+      scan = await navigator.bluetooth.requestLEScan({ acceptAllAdvertisements: true, keepRepeatedDevices: true });
+      navigator.bluetooth.addEventListener('advertisementreceived', onAdv);
+      tick = setInterval(drawFound, 1000); log('watching for devices');
+    } catch (err) { log('watching failed: ' + (err.message || err)); $('findHint').textContent = 'Could not watch for devices here (' + (err.message || err) + '). Use Connect to the laser instead.'; }
+  }
+  function stopFind() { try { scan && scan.stop(); } catch (_) {} scan = null; clearInterval(tick); navigator.bluetooth && navigator.bluetooth.removeEventListener && navigator.bluetooth.removeEventListener('advertisementreceived', onAdv); }
+  $('btnFind').addEventListener('click', startFind);
+  $('btnStopFind').addEventListener('click', () => { stopFind(); $('finder').hidden = true; });
+  $('btnUseFound').addEventListener('click', () => {
+    const r = T_top; if (!r) return; stopFind();
+    const f = []; if (r.name) f.push({ name: r.name }); r.makers.forEach((cid) => f.push({ manufacturerData: [{ companyIdentifier: cid }] })); r.uuids.forEach((u) => f.push({ services: [u] }));
+    log(`connecting to the device found: ${r.name || 'no name'} ${shortId(r.id)}, makers ${[...r.makers].map((c) => '0x' + c.toString(16).padStart(4, '0')).join(' ') || 'none'}, services ${[...r.uuids].join(' ') || 'none'}`);
+    connect(!f.length, f.length ? f : null);
+  });
+  $('btnLaser').addEventListener('click', () => send(LASER, 'fire'));
+  $('btnCopy').addEventListener('click', () => {
+    const text = `Laser Link Test log (${navigator.userAgent})\n` + lines.join('\n');
+    const pick = () => { const r = document.createRange(); r.selectNodeContents($('log')); const s = getSelection(); s.removeAllRanges(); s.addRange(r); say('The log is selected: copy it with Ctrl+C (or Copy on the iPad).'); };
+    try { navigator.clipboard.writeText(text).then(() => say('Log copied. Paste it to Claude.'), pick); } catch (_) { pick(); }
+  });
+  log(`ready. Bluetooth in this browser: ${navigator.bluetooth ? 'yes' : 'no'}; ${window.top === window ? 'opened on its own' : 'inside another page\'s frame'}`);
+})();
+</script>
+
+</body>
+</html>
