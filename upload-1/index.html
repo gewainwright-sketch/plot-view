@@ -364,6 +364,9 @@ button, input, select { font: inherit; color: inherit; }
 .trace-row .del:hover { background: var(--rule); color: var(--ink); }
 #exportDlg { max-width: min(560px, 92vw); border: 1px solid var(--rule); border-radius: 12px; background: var(--paper); color: var(--ink); padding: 18px 20px; }
 #exportDlg::backdrop { background: rgba(0, 0, 0, 0.35); }
+#saveDlg { max-width: min(460px, 92vw); border: 1px solid var(--rule); border-radius: 12px; background: var(--paper); color: var(--ink); padding: 18px 20px; }
+#saveDlg::backdrop { background: rgba(0, 0, 0, 0.35); }
+#saveDlg .scan-acts { flex-wrap: wrap; }
 .export-form { display: grid; gap: 10px; }
 .export-form h2 { margin: 0; font-size: 18px; }
 .export-form .small { color: var(--ink-3); font-size: 13.5px; margin: 0; }
@@ -564,6 +567,13 @@ button, input, select { font: inherit; color: inherit; }
     <p class="small">This browser can't save files from this page, so copy the text below.</p>
     <textarea id="exportText" readonly rows="10" spellcheck="false"></textarea>
     <div class="scan-acts"><button type="button" class="btn quiet" id="btnExportCopy">Copy</button><button type="submit" class="btn">Close</button></div>
+  </form>
+</dialog>
+<dialog id="saveDlg">
+  <form method="dialog" class="export-form">
+    <h2 id="saveTitle">Save</h2>
+    <p class="small" id="saveNote">This browser does not save downloads by itself. Tap Save to Files and choose Save to Files (or Files) on the sheet that opens.</p>
+    <div class="scan-acts"><button type="button" class="btn" id="btnSaveShare">Save to Files</button><button type="button" class="btn quiet" id="btnSaveOpen">Open it</button><button type="button" class="btn quiet" id="btnSaveCopy">Copy</button><button type="submit" class="btn quiet">Close</button></div>
   </form>
 </dialog>
 
@@ -4841,7 +4851,7 @@ const EMBEDDED_PLAN = null;
 <script id="ui">
 (() => {
   'use strict';
-  const BUILD = '2026-10-15a';
+  const BUILD = '2026-10-15b';
   const $ = (id) => document.getElementById(id);
   const mapEl = $('map');
   // 05u: Set, inside a lifted floor once it is let go
@@ -8819,6 +8829,48 @@ const EMBEDDED_PLAN = null;
     $('exportText').value = text;
     $('exportDlg').showModal();
   }
+  // 15b: an iPad or iPhone browser that is not Safari (Bluefy, Chrome, an app's browser) ignores a download link
+  function saveBySheet() {
+    if (T.forceSaveSheet != null) return !!T.forceSaveSheet;
+    const ua = navigator.userAgent || '';
+    const ios = /iP(hone|ad|od)/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+    if (!ios) return false;
+    return !!navigator.bluetooth || /CriOS|FxiOS|EdgiOS|OPiOS|Bluefy/i.test(ua) || !/Version\/[\d.]+.*Safari\//.test(ua);
+  }
+  function offerSave(name, blob) {
+    T.saveOffer = { name, blob, size: blob.size, how: null };
+    $('saveTitle').textContent = name;
+    $('saveNote').textContent = `This browser does not save downloads by itself, so ${name} (${blob.size > 1e6 ? (blob.size / 1e6).toFixed(1) + ' MB' : Math.max(1, Math.round(blob.size / 1e3)) + ' KB'}) is ready here. Tap Save to Files and choose Save to Files on the sheet that opens.`;
+    const dlg = $('saveDlg');
+    if (!dlg.open) dlg.showModal();
+    toast(`${name} is ready: tap Save to Files.`);
+  }
+  async function saveShare() {
+    const o = T.saveOffer; if (!o) return;
+    const file = new File([o.blob], o.name, { type: o.blob.type || 'application/octet-stream' });
+    try {
+      if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
+        await navigator.share({ files: [file], title: o.name });
+        o.how = 'share'; $('saveDlg').close(); toast(`Saved ${o.name}.`); return;
+      }
+    } catch (err) {
+      if (err && err.name === 'AbortError') { toast('Not saved: the sheet was closed. Tap Save to Files again.'); return; }
+    }
+    toast('This browser cannot open the save sheet. Try Open it, or Copy.');
+  }
+  function saveOpen() {
+    const o = T.saveOffer; if (!o) return;
+    const url = URL.createObjectURL(o.blob);
+    const w = window.open(url, '_blank');
+    if (!w) location.assign(url);
+    o.how = 'open';
+    setTimeout(() => URL.revokeObjectURL(url), 600000);
+  }
+  async function saveCopy() {
+    const o = T.saveOffer; if (!o) return;
+    try { await navigator.clipboard.writeText(await o.blob.text()); o.how = 'copy'; toast(`Copied ${o.name}: paste it into a new file (Notes or Files) and keep the name.`); }
+    catch (_) { toast('This browser would not copy it either.'); }
+  }
   // A file too big for the clipboard: the viewer's downloads, or outside claude.ai an ordinary download
   async function deliverBlob(name, blob) {
     try {
@@ -8827,6 +8879,7 @@ const EMBEDDED_PLAN = null;
     } catch (err) {
       if (err && err.code === 'declined') return false;
     }
+    if (saveBySheet()) { offerSave(name, blob); return true; }   // 15b: Bluefy and other iPad browsers drop downloads
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -10953,6 +11006,9 @@ const EMBEDDED_PLAN = null;
   $('btnTraceDone').addEventListener('click', () => finishTrace());
   $('btnExportJson').addEventListener('click', () => { selectTool('move'); deliver('plan-traces.json', exportText('json')); });
   $('btnExportSvg').addEventListener('click', () => { selectTool('move'); deliver('plan-traces.svg', exportText('svg')); });
+  $('btnSaveShare').addEventListener('click', saveShare);   // 15b
+  $('btnSaveOpen').addEventListener('click', saveOpen);
+  $('btnSaveCopy').addEventListener('click', saveCopy);
   $('btnExportCopy').addEventListener('click', async () => {
     try { await navigator.clipboard.writeText($('exportText').value); toast('Copied.'); } catch (_) { $('exportText').select(); }
   });
@@ -14800,6 +14856,7 @@ async function postcodeCentroid(pc){
     laserTrace() { const L = lzR(); const t = S.traces.find((x) => (L.mode === 'title' ? FM.mine && x.fromTitle === FM.mine.id : x.fromLaser)); return t ? JSON.parse(JSON.stringify(t)) : null; },
     laserDrawn() { requestRender(); return T.lzDrawn || null; },
     roadSide() { return T.roadSide || null; },
+    saveSheet(on) { if (on !== undefined) T.forceSaveSheet = on; return { sheet: saveBySheet(), offer: T.saveOffer ? { name: T.saveOffer.name, size: T.saveOffer.size, how: T.saveOffer.how } : null, open: $('saveDlg').open }; },
     packAt() { return FM.pack ? FM.pack.at || null : null; },
     setJobPlot(p) { T.jobPlot = p; },
     packCredits() { return FM.pack ? (FM.pack.credits || []).slice() : []; },
