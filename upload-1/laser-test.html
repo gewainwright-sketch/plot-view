@@ -51,6 +51,8 @@
   .logbox { overflow-x: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; max-height: 260px; overflow-y: auto; }
   pre { margin: 0; font-family: var(--f-mono); font-size: .78rem; white-space: pre; }
   .head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .box { font: inherit; padding: 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--fg); }
+  .group { margin: 12px 0 4px; }
   @media (prefers-reduced-motion: no-preference) { .big { transition: color .6s; } }
 </style>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600&family=Barlow+Condensed:wght@600&family=JetBrains+Mono&display=swap">
@@ -65,6 +67,16 @@
     <span class="label">Last reading</span>
     <div class="big" id="big">–.–––<span class="unit">m</span></div>
     <div class="status"><span class="dot" id="dot"></span><span id="status">Not connected</span></div>
+  </section>
+
+  <section class="note" id="keys" hidden>
+    <div class="head"><h2>Keys from the laser</h2><button type="button" id="btnBypassOff">Bypass off</button></div>
+    <p class="sub">Keypad bypass is on: the laser should now send its key presses here instead of acting on them. Press each key once; each one should show as a different bit. Name the bits so Plot view can use them. The last key seen: <b id="keyLast">none yet</b></p>
+    <div class="logbox" style="max-height:none"><table>
+      <thead><tr><th>Bit</th><th>Pressed</th><th>Name</th></tr></thead>
+      <tbody id="keyRows"><tr class="ex"><td>none yet</td><td></td><td></td></tr></tbody>
+    </table></div>
+    <p class="sub" id="keyNote">If nothing arrives when you press keys, the laser may send them in another shape: anything unexpected that comes in while bypass is on is logged as a possible key event and beeps.</p>
   </section>
 
   <div class="row">
@@ -97,22 +109,38 @@
   </section>
 
   <section class="note" id="extras">
-    <h2>Battery and experiments</h2>
-    <p class="sub">Once connected. Battery asks the laser for a battery reading and what it says about itself. Try commands sends test messages: watch the laser's screen after each one and note what changes (if a setting changes, set it back on the laser).</p>
-    <div class="row" style="margin-top:8px"><button type="button" id="btnBattery" disabled>Battery</button></div>
-    <div class="row" style="margin-top:8px" id="tryRow"></div>
-    <div class="row" style="margin-top:8px"><button type="button" id="btnRead" disabled>Read the known answers</button></div>
-    <p class="sub">Safe: asks only the commands the laser has already answered with information (none of them do anything). Tap it, change one thing on the laser (back out to the measuring screen), tap it again: what changed is listed.</p>
-    <div class="row" style="margin-top:8px"><span class="sub" style="align-self:center">Scan from</span><input id="scanFrom" value="ee" size="3" style="font:inherit;padding:10px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--fg);width:4.5em"><button type="button" id="btnScan" disabled>Scan commands</button><button type="button" id="btnScanStop" disabled>Stop scan</button></div>
-    <p class="sub" id="scanNote">Scan asks each command number in turn from the one given and logs the answers. It skips the ones that act (35 switched the laser off, 45 beeps without stopping, 48 turns the screen off, ed drops Bluetooth), keeps its place on this iPad so a crash cannot lose it, and stops by itself if a command does something or the laser goes quiet.</p>
-    <div class="row" style="margin-top:8px"><input id="tryHex" placeholder="c0 56 01 00" style="font:inherit;padding:10px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--fg);min-width:0;flex:1"><button type="button" id="btnTryHex" disabled>Send</button></div>
+    <h2>Ask and control</h2>
+    <p class="sub">Once connected. These come from Bosch's own protocol document (MT protocol LRF command set 2.5.0, in bosch-docs). Every answer is decoded in the log. The function buttons change the laser's measuring function: watch its screen.</p>
+    <p class="label group">Function (command 55, sub-command 60)</p>
+    <div class="row" id="fnRow"></div>
+    <div class="row" style="margin-top:8px"><span class="sub" style="align-self:center">Function number</span><input id="fnNum" value="24" size="3" class="box" style="width:4.5em" inputmode="numeric"><button type="button" id="btnFn" class="tryb" disabled>Set function</button></div>
+    <p class="sub">Sweep 1 to 63 with Set function to find every function this model has: each either changes the screen or answers 06.</p>
+    <p class="label group">Ask the laser</p>
+    <div class="row" id="askRow"></div>
+    <div class="row" style="margin-top:8px"><span class="sub" style="align-self:center">Memory entry</span><input id="memNum" value="1" size="3" class="box" style="width:4.5em" inputmode="numeric"><button type="button" id="btnMem" class="tryb" disabled>Read entry</button><button type="button" id="btnClock" class="tryb" disabled>Set clock to now</button><button type="button" id="btnBattery" disabled>Battery (standard)</button></div>
+    <p class="label group">Reference edge and settings</p>
+    <div class="row" id="refRow"></div>
+    <div class="row" style="margin-top:8px"><span class="sub" style="align-self:center">Settings byte</span><input id="sbIdx" value="4" size="2" class="box" style="width:3.5em" inputmode="numeric"><span class="sub" style="align-self:center">=</span><input id="sbVal" value="1" size="3" class="box" style="width:4.5em" inputmode="numeric"><button type="button" id="btnSb" class="tryb" disabled>Write byte</button></div>
+    <p class="sub">Write byte reads the 11 settings bytes, changes one, writes them back and reads them again. Byte 4 is backlight mode (0 auto, 1 on, 2 off), 6 is units (2 = metres), 8 is read-only (memory index), 9 and 10 are unknown on this model.</p>
+    <p class="label group">Experimental</p>
+    <div class="row" id="expRow"></div>
+    <p class="sub">Keypad bypass sends the laser's key presses to this page as events and the laser stops reacting to them itself; bypass OFF (or a power cycle) restores it.</p>
+    <div class="row" style="margin-top:8px"><span class="sub" style="align-self:center">Key bit</span><input id="kpBit" value="0" size="3" class="box" style="width:4.5em" inputmode="numeric"><button type="button" id="btnKp" class="tryb" disabled>Press key (cmd 27)</button></div>
+    <p class="sub">Command 27 "keypad pattern" exists in Bosch's own app library: a 32-bit pattern of keys. Which bit is which key is unknown, so try bits 0 to 15 one at a time and watch the laser; the On/Off key is the worst case (turn it back on).</p>
+    <p class="label group">Census of command numbers</p>
+    <div class="row" style="margin-top:8px"><button type="button" id="btnRead" disabled>Read the known answers</button><button type="button" id="btnCensus">Show census</button></div>
+    <p class="sub">Read the known answers: asks only the commands the laser has already answered with information (none of them do anything). Tap it, change one thing on the laser (back out to the measuring screen), tap it again: what changed is listed.</p>
+    <div class="row" style="margin-top:8px"><span class="sub" style="align-self:center">Scan from</span><input id="scanFrom" value="00" size="3" class="box" style="width:4.5em"><button type="button" id="btnScan" disabled>Scan commands</button><button type="button" id="btnScanStop" disabled>Stop scan</button></div>
+    <p class="sub" id="scanNote">Scan asks each command number from the one given, with no data, and logs the status it answers: 04 = not on this laser, 05 = locked (Bluetooth cannot unlock it), 06 = exists and wants data, 00 = answered. Results are kept on this device (Show census). It never sends 10 35 3a 3b 45 48 4e 4f 52 54 55 56 or the Bluetooth-module commands e8 to ff, keeps its place so a crash cannot lose it, and pauses if a command answers "done" with no information or the laser goes quiet.</p>
+    <div class="row" style="margin-top:8px"><input id="tryHex" placeholder="c0 55 02 f1 0a" class="box" style="min-width:0;flex:1"><button type="button" id="btnTryHex" disabled>Send</button></div>
+    <p class="sub">Type any bytes in hex; the checksum is added for you.</p>
   </section>
 
   <section>
     <div class="head"><span class="label">Readings this session</span></div>
     <table>
-      <thead><tr><th>#</th><th>Time</th><th>Distance</th><th>Status byte</th></tr></thead>
-      <tbody id="rows"><tr class="ex"><td>e.g.</td><td>10:42:07</td><td>6.493 m</td><td>06</td></tr></tbody>
+      <thead><tr><th>#</th><th>Time</th><th>Distance</th><th>Function, edge</th></tr></thead>
+      <tbody id="rows"><tr class="ex"><td>e.g.</td><td>10:42:07</td><td>6.493 m</td><td>Length, rear</td></tr></tbody>
     </table>
   </section>
 
@@ -129,9 +157,25 @@
   const CHR = '02a6c0d1-0451-4000-b000-fb3210111989';
   const SYNC = [0xC0, 0x55, 0x02, 0x01, 0x00, 0x1A];    // send each measurement as it is taken
   const LASER = [0xC0, 0x56, 0x01, 0x00, 0x1E];         // the laser's own button: first press aims, second measures (George's GLM 100-25 C, 14 Oct 2026)
+  // v2, 16 Oct 2026: names from Bosch "MT protocol LRF command set 2.5.0" (command 85 = 0x55, exchange data container).
+  // The first byte of every 16-byte container is DevMode << 2 | reference edge; the same numbers are the sub-commands of 55.
+  const MODES = { 0: 'status', 1: 'Length', 2: 'Continuous', 3: 'Area part 1', 4: 'Area', 5: 'Volume part 1', 6: 'Volume part 2', 7: 'Volume',
+    8: 'Angle', 9: 'Continuous angle', 10: 'Indirect height', 11: 'Indirect length', 12: 'Double indirect part 1', 13: 'Double indirect height',
+    14: 'Wall area part 1', 15: 'Wall area', 16: 'Distance +', 17: 'Distance −', 18: 'Area +', 19: 'Area −', 20: 'Volume +', 21: 'Volume −',
+    22: 'Level', 23: 'Continuous level', 24: 'Trapezoid part 1', 25: 'Trapezoid part 2', 26: 'Trapezoid', 57: 'memory entry time',
+    58: 'memory entry', 59: 'battery and temperature', 60: 'function report', 61: 'angle reference', 62: 'distance reference', 63: 'ERROR' };
+  // 24-26 and 57 come from Bosch's own App Kit library (bosch-mtprotocol.jar, EDCInputMessage), which also has command 27 = keypad pattern
+  // (uint32 of key bits), 45 = trace data info, 46 = trace data (offset uint16, size uint16)
+  const REFS = ['front', 'tripod', 'rear', 'pin'];
+  // status byte of every reply (MT connectivity protocol 1.2.9, section 3.2.4): low 3 bits a code, bits 3-5 flags
+  const STATUS = ['ok', 'timeout (01)', 'mode not supported (02)', 'checksum error (03)', 'not on this laser (04)', 'locked: access level (05)', 'exists, data not valid (06)', 'reserved (07)'];
+  function statusText(b) { let s = STATUS[b & 7]; if (b & 0x08) s += ' +hardware error'; if (b & 0x10) s += ' +not ready'; if (b & 0x20) s += ' +hand raised'; return s; }
+  const modeName = (m) => MODES[m] || `mode ${m}`;
+  const utc = (t) => new Date(t * 1000).toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
   const $ = (id) => document.getElementById(id);
   let dev = null, chr = null, n = 0, audio = null, quiet = 0;
   let scanning = false, scanStop = false, scanBuf = [];
+  let lastCmd = -1, pending = 0;   // the last command number sent (a reply does not say which command it answers), and bytes still to come of a long reply
   const lines = [];
   const hex = (u8) => Array.from(u8, (b) => b.toString(16).padStart(2, '0')).join(' ');
   const stamp = () => new Date().toTimeString().slice(0, 8);
@@ -142,44 +186,148 @@
     try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); const o = audio.createOscillator(); const g = audio.createGain(); o.frequency.value = 1320; g.gain.value = 0.08; o.connect(g); g.connect(audio.destination); o.start(); o.stop(audio.currentTime + 0.12); } catch (_) { /* no sound */ }
     try { navigator.vibrate && navigator.vibrate(60); } catch (_) { /* no vibration */ }
   }
-  function reading(m, st) {
+  function reading(m, mode, ref) {
     n++;
     const big = $('big'); big.innerHTML = `${m.toFixed(3)}<span class="unit">m</span>`; big.classList.add('fresh'); setTimeout(() => big.classList.remove('fresh'), 900);
     const tb = $('rows'); const ex = tb.querySelector('.ex'); if (ex) ex.remove();
-    const tr = document.createElement('tr'); tr.innerHTML = `<td>${n}</td><td>${stamp()}</td><td class="m">${m.toFixed(3)} m</td><td>${st.toString(16).padStart(2, '0')}</td>`; tb.prepend(tr);
+    const tr = document.createElement('tr'); tr.innerHTML = `<td>${n}</td><td>${stamp()}</td><td class="m">${m.toFixed(3)} m</td><td>${modeName(mode)}, ${ref}</td>`; tb.prepend(tr);
     beep();
   }
+  // One 16-byte exchange data container, at byte offset `off` of the notification `dv`:
+  // [0] DevMode << 2 | reference edge, [1] flags (bit 0 laser on, 1 temperature warning, 2 battery low), [2..3] measurement id,
+  // [4..7] Result, [8..11] Component1, [12..15] Component2 (float32 LE); for DevMode 63 Result is an int32 error number.
+  function decodeContainer(c, dv, off) {
+    const mode = c[0] >> 2, ref = REFS[c[0] & 3], flags = c[1], id = c[2] | (c[3] << 8);
+    const f = (i) => dv.getFloat32(off + i, true);
+    const r = f(4), c1 = f(8), c2 = f(12);
+    if (mode === 60) { const m = Math.round(r); log(`     function report: ${modeName(m)} (${m})`); setStatus(`Connected: function is ${modeName(m)}`, 'on'); return { mode, m }; }
+    if (mode === 63) { const err = dv.getInt32(off + 4, true); log(`     ERROR from the laser: ${err}${err === 1 ? ' (measurement error)' : ''}`); return { mode, err }; }
+    if (mode === 59) { log(`     battery ${r.toFixed(0)} %, temperature ${c1.toFixed(1)} °C`); return { mode, r, c1 }; }
+    const bits = (flags & 1 ? 'laser on' : 'laser off') + (flags & 2 ? ', TEMPERATURE WARNING' : '') + (flags & 4 ? ', BATTERY LOW' : '');   // bit 3 is always set on the 100-25 C (documented as imperial units; not that here)
+    log(`     ${modeName(mode)} (${mode}), ${ref} edge, id ${id}, ${bits}: ${r.toFixed(4)} / ${c1.toFixed(4)} / ${c2.toFixed(4)}`);
+    return { mode, ref, r, c1, c2, flags };
+  }
+  // Keypad bypass test. With DevModeSync bit 1 set (c0 55 02 03 00) the laser should pass its key presses to us instead of acting
+  // on them. Bosch's library has command 27 "keypad pattern" (a uint32 of key bits) and parses it from frames the laser sends, so
+  // the expected shape is c0 1b 04 <pattern LE> crc. Nobody has seen it on this model, so anything else unexpected that arrives
+  // while bypass is on is treated as a possible key event too. Bits seen are kept on this device with the names George gives them.
+  let bypass = false, keyStats = null;   // keyStats is read from this device's storage on first use (store is defined further down)
+  const keysDb = () => keyStats || (keyStats = store.get('glmKeys') || {});
+  const keyName = (b) => (keysDb()[b] && keysDb()[b].name) ? `${keysDb()[b].name} (bit ${b})` : `bit ${b}`;
+  function keyEvent(pattern, how) {
+    $('keys').hidden = false;
+    const bits = []; for (let b = 0; b < 32; b++) if ((pattern >>> b) & 1) bits.push(b);
+    const label = bits.length ? bits.map(keyName).join(' + ') : 'all keys released (pattern 0)';
+    log(`     KEY ${how}: pattern ${(pattern >>> 0).toString(16).padStart(8, '0')} = ${label}`);
+    $('keyLast').textContent = `${stamp()}  ${label}`;
+    const ks = keysDb(); for (const b of bits) { ks[b] = ks[b] || { n: 0, name: '' }; ks[b].n++; }
+    store.set('glmKeys', ks); drawKeys();
+    if (bits.length) { beep(); const big = $('big'); big.classList.add('fresh'); setTimeout(() => big.classList.remove('fresh'), 400); }
+  }
+  function drawKeys() {
+    const tb = $('keyRows'); tb.innerHTML = ''; const ks = keysDb();
+    const bits = Object.keys(ks).map(Number).sort((a, b) => a - b);
+    if (!bits.length) { tb.innerHTML = '<tr class="ex"><td>none yet</td><td></td><td></td></tr>'; return; }
+    for (const b of bits) { const tr = document.createElement('tr'); tr.innerHTML = `<td class="m">${b}</td><td>${ks[b].n}×</td><td><input class="box" style="width:8em" value="${String(ks[b].name || '').replace(/"/g, '&quot;')}" placeholder="e.g. plus" data-bit="${b}"></td>`; tb.appendChild(tr); }
+    tb.querySelectorAll('input').forEach((inp) => inp.addEventListener('change', () => { ks[inp.dataset.bit].name = inp.value.trim(); store.set('glmKeys', ks); }));
+  }
+  function possibleKey(u8, what) { log(`     possible KEY event while bypass is on (${what})`); $('keys').hidden = false; $('keyLast').textContent = `${stamp()}  unknown shape: ${hex(u8)}`; beep(); }
   function onData(e) {
     const v = e.target.value; const u8 = new Uint8Array(v.buffer, v.byteOffset, v.byteLength);
+    const dv = new DataView(v.buffer, v.byteOffset, v.byteLength);
     if (u8.length === 4 && u8[0] === 0xC0 && u8[1] === 0x11) { quiet++; if (quiet % 30 === 1) log(`in   ${hex(u8)}  (still connected: sent every 1.5 s, not all shown)`); return; }
     if (scanning) { if (u8[0] !== 0xC0) scanBuf.push(...u8); return; }   // a scan collects replies quietly
     log('in   ' + hex(u8));
-    if (u8.length >= 4 && u8[0] === 0xC0 && u8[1] === 0x55 && u8[3] === 0x02) { setStatus('Laser on: aim, then fire again to measure', 'warn'); }
-    if (u8.length >= 11 && u8[0] === 0xC0 && u8[1] === 0x55) {
-      const m = new DataView(v.buffer, v.byteOffset, v.byteLength).getFloat32(7, true);
-      if (u8[3] === 0x06 && Number.isFinite(m) && m > 0 && m < 300) { log(`     = ${m.toFixed(4)} m`); reading(m, u8[3]); setStatus(`Connected to ${dev && dev.name || 'the laser'}: reading received`, 'on'); }
-      else log(`     (not a finished reading: status ${u8[3].toString(16).padStart(2, '0')}, value ${Number.isFinite(m) ? m.toFixed(4) : '?'})`);
+    if (pending > 0) { pending -= u8.length; log(`     (rest of the long reply${pending > 0 ? '' : ', complete'})`); return; }
+    // key presses passed through by the laser (keypad bypass): c0 1b 04 <uint32 pattern> crc
+    if (u8.length >= 8 && u8[0] === 0xC0 && u8[1] === 0x1B && u8[2] === 0x04) { keyEvent(dv.getUint32(3, true), 'event from the laser (command 27)'); return; }
+    // the laser's own events: c0 55 10 <container> crc
+    if (u8.length >= 20 && u8[0] === 0xC0 && u8[1] === 0x55 && u8[2] === 0x10) {
+      const d = decodeContainer(u8.subarray(3, 19), dv, 3);
+      if (d.mode === 0) { if (d.flags & 1) setStatus('Laser on: aim, then fire again to measure', 'warn'); return; }
+      if ((d.mode === 1 || d.mode === 10 || d.mode === 16) && Number.isFinite(d.r) && d.r > 0 && d.r < 300) { reading(d.r, d.mode, d.ref); setStatus(`Connected to ${dev && dev.name || 'the laser'}: reading received`, 'on'); }
+      else if (bypass && !(d.mode in MODES)) possibleKey(u8, `container with unknown function ${d.mode}`);
+      return;
     }
+    if (u8[0] & 0xC0) { if (bypass) possibleKey(u8, `request ${h2(u8[1])} from the laser`); return; }   // some other request from the laser
+    if (lastCmd === 0x1B && u8[0] === 0 && u8[1] === 4 && u8.length >= 7) { keyEvent(dv.getUint32(2, true), 'reply to the key pattern sent'); return; }
+    // a reply to the last command sent: <status> <length> <data> <crc>
+    const st = u8[0], len = u8[1];
+    if (st & 0x3F) { log(`     status: ${statusText(st)}`); return; }
+    if (len + 3 > u8.length) { pending = len + 3 - u8.length; log(`     (${len} data bytes, arrives in pieces)`); return; }
+    const data = u8.subarray(2, 2 + len);
+    if (lastCmd === 0x55 && len === 16) { decodeContainer(data, dv, 2); return; }
+    if (lastCmd === 0x0F && len === 4) { const t = dv.getUint32(2, true); log(`     laser clock: ${utc(t)} (${t}); this device says ${utc(Math.floor(Date.now() / 1000))}`); return; }
+    if (lastCmd === 0x53 && len === 11) { log(`     settings: spirit level ${data[0]}, rotation ${data[1]}, beep ${data[2]}, permanent laser ${data[3]}, backlight mode ${data[4]}, angle unit ${data[5]}, units ${data[6]}, config ${data[7]}, memory index ${data[8]}, byte 9 = ${data[9]}, byte 10 = ${data[10]}`); return; }
+    if (lastCmd === 0x4B && len === 1) { log(`     battery ${data[0]} %`); return; }
+    if (lastCmd === 0x2D && len === 11) { log(`     trace data: version ${data[0]}.${data[1]}.${data[2]}, ${dv.getUint16(5, true)} bytes, ${dv.getUint16(7, true)} erase cycles, CRC32 ${dv.getUint32(9, true).toString(16).padStart(8, '0')} (changes when the data changes)`); return; }
+    if (lastCmd === 0x73 && len === 20) { const f = (i) => dv.getFloat32(2 + i, true).toFixed(2); log(`     SNR ${f(0)}, SNR* ${f(4)}, VHV ${f(8)} V, laser DAC ${f(12)}, temperature ${f(16)} °C`); return; }
+    if (len === 0) log('     done');
   }
   // the laser's checksum: CRC-8, polynomial 0xA6, start 0xAA (worked out from the logs)
   function crc(bytes) { let c = 0xAA; for (const b0 of bytes) { c ^= b0; for (let k = 0; k < 8; k++) c = c & 0x80 ? ((c << 1) ^ 0xA6) & 0xFF : (c << 1) & 0xFF; } return c; }
-  const TRY = [
-    ['Read distance (after one Fire)', [0xC0, 0x40, 0x00]],
-    ['Status block again', [0xC0, 0x55, 0x02, 0x01, 0x00]],
-    ['Button code 1', [0xC0, 0x56, 0x01, 0x01]], ['Button code 2', [0xC0, 0x56, 0x01, 0x02]], ['Button code 3', [0xC0, 0x56, 0x01, 0x03]],
-    ['Button code 4', [0xC0, 0x56, 0x01, 0x04]], ['Button code 5', [0xC0, 0x56, 0x01, 0x05]], ['Button code 6', [0xC0, 0x56, 0x01, 0x06]],
-    ['Settings query', [0xC0, 0x53, 0x00]], ['Device query', [0xC0, 0x06, 0x00]],
+  // Buttons. Function: command 55 with sub-command 60 (SetDevAppMode) in the top 6 bits: (60 << 2) | 1 = 0xF1, then the mode number.
+  const FN = [['Which function?', 0], ['Length', 1], ['Indirect height', 10], ['Continuous', 2], ['Area', 4], ['Volume', 7], ['Angle', 8],
+    ['Indirect length', 11], ['Double indirect', 13], ['Wall area', 15], ['Trapezoid', 26], ['Level', 22], ['Continuous level', 23]];
+  const ASK = [
+    ['Battery & temperature', [0xC0, 0x55, 0x02, 0xED, 0x00]],   // sub-command 59: (59 << 2) | 1 = 0xED (a data byte, not the ed command)
+    ['Battery (cmd 75)', [0xC0, 0x4B, 0x00]],
+    ['Signal quality (cmd 115)', [0xC0, 0x73, 0x00]],
+    ['Clock', [0xC0, 0x0F, 0x00]], ['Settings', [0xC0, 0x53, 0x00]], ['Device', [0xC0, 0x06, 0x00]],
+    ['Readings on', [0xC0, 0x55, 0x02, 0x01, 0x00]], ['Readings off', [0xC0, 0x55, 0x02, 0x00, 0x00]],
+    ['Trace info (cmd 45)', [0xC0, 0x2D, 0x00]],
+    ['Trace data 0-199 (cmd 46)', [0xC0, 0x2E, 0x04, 0x00, 0x00, 0xC8, 0x00]], ['Trace data 200-283', [0xC0, 0x2E, 0x04, 0xC8, 0x00, 0x54, 0x00]],
   ];
+  const REF = [['Front edge', 0], ['Tripod', 1], ['Rear edge', 2], ['Pin', 3]];   // sub-command 62: (62 << 2) | 1 = 0xF9
+  const EXP = [['Keypad bypass ON', [0xC0, 0x55, 0x02, 0x03, 0x00]], ['Keypad bypass OFF', [0xC0, 0x55, 0x02, 0x01, 0x00]],
+    ['Beep', [0xC0, 0x45, 0x00]], ['Stop beep', [0xC0, 0x46, 0x00]], ['Screen off', [0xC0, 0x48, 0x00]], ['Screen on', [0xC0, 0x47, 0x00]]];
   async function sendFramed(bytes, what) { await send([...bytes, crc(bytes)], what); }
-  // Scan: every command number with no data (except the three known to act: 0x54 write settings, 0x55 sending switch,
-  // 0x56 the button); replies gathered for 450 ms; compared with the last scan kept on this iPad
-  // 15 Oct 2026, George's scan: 0x10 answered "done" with no data (it does something), 0x35 switched the laser off
-  const SKIP = new Set([0x10, 0x35, 0x45, 0x48, 0x54, 0x55, 0x56, 0xED]);   // + 45 constant beep, 48 screen off, ed drops Bluetooth (George, 15 Oct)
-  const KNOWN = [0x00, 0x03, 0x04, 0x05, 0x06, 0x08, 0x0D, 0x0F, 0x20, 0x2D, 0x30, 0x53];   // answered with information
+  // Census scan: every command number with no data, logging the status byte of each reply. Never sent (Bosch documents + George's tests):
+  // 10 set clock (no data = clock to zero), 35 factory reset, 3a 3b flashloader (firmware), 45 constant beep, 48 screen off,
+  // 4e 4f laser class, 52 clear memory, 54 write settings, 55 56 act, e8-ff Bluetooth-module setters and resets (ed and fc drop Bluetooth)
+  const SKIP = new Set([0x10, 0x35, 0x3A, 0x3B, 0x45, 0x48, 0x4E, 0x4F, 0x52, 0x54, 0x55, 0x56,
+    0xE8, 0xE9, 0xEA, 0xED, 0xEE, 0xF0, 0xF4, 0xF6, 0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF]);
+  const HARMLESS_DONE = new Set([0x3E, 0x3F, 0x46, 0x47]);   // echo, ping, stop beep, screen on: "done" without pausing the scan
+  const KNOWN = [0x00, 0x03, 0x04, 0x05, 0x06, 0x08, 0x0D, 0x20, 0x2D, 0x30, 0x39, 0x53, 0x5F, 0x76, 0xC8, 0xF1, 0xF2, 0xF3, 0xF5, 0xF7];   // answered with information (0f clock left out: always changes)
   const h2 = (k) => k.toString(16).padStart(2, '0');
   const store = { get(k) { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (_) { return null; } }, set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (_) { /* not kept */ } } };
-  async function ask(k, ms) { scanBuf = []; const b = [0xC0, k, 0x00]; const data = new Uint8Array([...b, crc(b)]);
+  // send bytes (checksum added) while `scanning` is on, and return whatever reply bytes arrive within ms
+  async function askBytes(b, ms) { scanBuf = []; const data = new Uint8Array([...b, crc(b)]); lastCmd = b[1];
     if (chr.writeValueWithResponse) await chr.writeValueWithResponse(data); else await chr.writeValue(data); await wait(ms || 450); return scanBuf.slice(); }
+  const ask = (k, ms) => askBytes([0xC0, k, 0x00], ms);
+  // read the 11 settings bytes, change one, write them back, read again (the Bosch document: always read before writing)
+  async function writeSettingByte(idx, val) {
+    if (!chr || scanning) return;
+    if (!(idx >= 0 && idx <= 10) || !(val >= 0 && val <= 255)) { say('Settings byte must be 0 to 10 and the value 0 to 255.'); return; }
+    if (idx === 8) { say('Byte 8 is read-only (the memory index).'); return; }
+    scanning = true;
+    try {
+      const r = await askBytes([0xC0, 0x53, 0x00], 500);
+      if (!(r.length >= 14 && r[0] === 0x00 && r[1] === 0x0B)) { log(`settings: could not read them first (${r.length ? hex(r) : 'no answer'}); nothing written`); return; }
+      const block = r.slice(2, 13); const before = hex(block);
+      if (block[idx] === val) { log(`settings byte ${idx} is already ${val}: ${before}`); return; }
+      block[idx] = val;
+      const w = await askBytes([0xC0, 0x54, 0x0B, ...block], 500);
+      log(`settings byte ${idx} = ${val}: write answered ${w.length ? statusText(w[0]) : 'nothing'}`);
+      const r2 = await askBytes([0xC0, 0x53, 0x00], 500);
+      const after = r2.length >= 14 ? hex(r2.slice(2, 13)) : '(no answer)';
+      log(`settings before ${before}\n         after  ${after}${after === hex(block) ? '  (as written)' : '  (NOT as written: the laser kept its own value)'}`);
+    } catch (err) { log('settings write failed: ' + (err.message || err)); }
+    finally { scanning = false; }
+  }
+  // command 16 (0x10) set clock: uint32 LE seconds since 1970 UTC; then command 15 to read it back
+  async function setClock() {
+    if (!chr || scanning) return;
+    const t = Math.floor(Date.now() / 1000); const b = [0xC0, 0x10, 0x04, t & 0xFF, (t >> 8) & 0xFF, (t >> 16) & 0xFF, (t >>> 24) & 0xFF];
+    scanning = true;
+    try {
+      const w = await askBytes(b, 500); log(`out  ${hex(new Uint8Array([...b, crc(b)]))}  (set clock to ${utc(t)}): ${w.length ? statusText(w[0]) : 'no answer'}`);
+      const r = await askBytes([0xC0, 0x0F, 0x00], 500);
+      if (r.length >= 7 && r[0] === 0 && r[1] === 4) { const t2 = (r[2] | (r[3] << 8) | (r[4] << 16)) + r[5] * 16777216; log(`     laser clock now ${utc(t2)} (${t2 - t >= 0 ? '+' : ''}${t2 - t} s against this device)`); }
+      else log(`     clock read back: ${r.length ? hex(r) : 'no answer'}`);
+    } catch (err) { log('set clock failed: ' + (err.message || err)); }
+    finally { scanning = false; }
+  }
   async function readKnown() {
     if (!chr || scanning) return;
     scanning = true; $('btnRead').disabled = true; const res = {};
@@ -190,12 +338,14 @@
     store.set('glmKnown', res);
   }
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  // The census is kept on this device as { "5f": { s: <status byte>, r: "<reply hex>" } }; s = -1 means no answer
   async function cmdScan() {
     if (!chr || scanning) return;
     const from = Math.max(0, Math.min(255, parseInt($('scanFrom').value, 16) || 0));
     scanning = true; scanStop = false; $('btnScan').disabled = true; $('btnScanStop').disabled = false; $('btnRead').disabled = true;
-    let found = 0, refused = 0, silent = 0, why = 'finished';
-    log(`scan: from ${h2(from)} (skipping 10, 35, 45, 48, 54, 55, 56, ed)`);
+    const census = store.get('glmCensus') || {};
+    const tally = { info: 0, done: 0, 4: 0, 5: 0, 6: 0, other: 0, silent: 0 }; let why = 'finished';
+    log(`scan: from ${h2(from)} with no data; every status is logged and kept (Show census). Never sent: ${[...SKIP].map(h2).join(' ')}`);
     for (let k = from; k <= 0xFF; k++) {
       if (scanStop) { why = `stopped by you at ${h2(k)}`; break; }
       if (!chr || !dev || !dev.gatt.connected) { why = `the laser disconnected just after command ${h2(k - 1)}`; break; }
@@ -205,15 +355,36 @@
       setStatus(`Scanning: command ${h2(k)} of ff`, 'warn');
       let r;
       try { r = await ask(k, 450); } catch (err) { log(`scan ${h2(k)}: send failed (${err.message || err})`); why = `send failed at ${h2(k)}`; break; }
-      if (!r.length) { silent++; log(`scan ${h2(k)}: no answer`); why = `paused: ${h2(k)} gave no answer (it may have done something: check the laser, then scan from ${h2(k + 1)})`; $('scanFrom').value = h2(k + 1); break; }
-      if (r[0] === 0x04 || r[0] === 0x05 || r[0] === 0x06) { refused++; continue; }
-      found++; log(`scan ${h2(k)}: ${hex(r)}`);
-      if (r.length <= 3) { why = `paused: ${h2(k)} answered "done" with no information, so it probably did something: check the laser, then scan from ${h2(k + 1)}`; $('scanFrom').value = h2(k + 1); break; }
+      if (!r.length) { tally.silent++; census[h2(k)] = { s: -1 }; store.set('glmCensus', census); log(`scan ${h2(k)}: no answer`); why = `paused: ${h2(k)} gave no answer (it may have done something: check the laser, then scan from ${h2(k + 1)})`; $('scanFrom').value = h2(k + 1); break; }
+      const code = r[0] & 0x07, flags = r[0] & 0x38;
+      census[h2(k)] = { s: r[0], r: code === 0 && r.length > 3 ? hex(r) : undefined }; store.set('glmCensus', census);
+      const flagTxt = flags ? '  ' + statusText(r[0]).replace(/^[^+]*/, '') : '';
+      if (code === 4 || code === 5 || code === 6) { tally[code]++; log(`scan ${h2(k)}: ${h2(r[0])} ${STATUS[code]}${flagTxt}`); continue; }
+      if (code !== 0) { tally.other++; log(`scan ${h2(k)}: status ${h2(r[0])} ${statusText(r[0])}`); continue; }
+      if (r.length > 3) { tally.info++; log(`scan ${h2(k)}: ${hex(r)}${flagTxt}`); continue; }
+      tally.done++; log(`scan ${h2(k)}: done, no information${flagTxt}`);
+      if (HARMLESS_DONE.has(k)) continue;
+      why = `paused: ${h2(k)} answered "done" with no information, so it probably did something: check the laser, then scan from ${h2(k + 1)}`; $('scanFrom').value = h2(k + 1); break;
     }
     scanning = false; $('btnScan').disabled = !chr; $('btnScanStop').disabled = true; $('btnRead').disabled = !chr;
-    log(`scan: ${found} answered with information, ${refused} refused, ${silent} silent; ${why}`);
-    if (why === 'finished') store.set('glmScanAt', { next: 256, at: new Date().toISOString() });
+    log(`scan: ${tally.info} answered with information, ${tally.done} done, ${tally[6]} exist and want data (06), ${tally[5]} locked (05), ${tally[4]} not on this laser (04), ${tally.other} other, ${tally.silent} silent; ${why}`);
+    if (why === 'finished') { store.set('glmScanAt', { next: 256, at: new Date().toISOString() }); showCensus(); }
     setStatus(chr ? 'Connected: scan ' + (why === 'finished' ? 'finished' : 'paused') : 'Disconnected', chr ? 'on' : 'warn');
+  }
+  function showCensus() {
+    const c = store.get('glmCensus'); const keys = c ? Object.keys(c).sort() : [];
+    if (!keys.length) { log('census: nothing kept on this device yet. Scan commands from 00 fills it in'); return; }
+    const pick = (test) => keys.filter((k) => test(c[k])).join(' ') || 'none';
+    const code = (e) => e.s < 0 ? -1 : e.s & 7;
+    log(`census: ${keys.length} of ${256 - SKIP.size} command numbers tried (never sent: ${[...SKIP].map(h2).join(' ')})\n` +
+      `  answered with information: ${pick((e) => code(e) === 0 && e.r)}\n` +
+      `  done, no information:      ${pick((e) => code(e) === 0 && !e.r)}\n` +
+      `  exist, want data (06):     ${pick((e) => code(e) === 6)}\n` +
+      `  locked (05):               ${pick((e) => code(e) === 5)}\n` +
+      `  not on this laser (04):    ${pick((e) => code(e) === 4)}\n` +
+      `  other status:              ${keys.filter((k) => c[k].s >= 0 && ![0, 4, 5, 6].includes(code(c[k]))).map((k) => `${k}=${h2(c[k].s)}`).join(' ') || 'none'}\n` +
+      `  no answer:                 ${pick((e) => e.s < 0)}\n` +
+      `  with flags set:            ${keys.filter((k) => c[k].s > 0 && (c[k].s & 0x38)).map((k) => `${k}=${h2(c[k].s)}`).join(' ') || 'none'}`);
   }
   async function battery() {
     if (!dev || !dev.gatt.connected) { log('battery: connect first'); return; }
@@ -226,6 +397,8 @@
   async function send(bytes, what) {
     if (!chr) return;
     const data = new Uint8Array(bytes);
+    if (data[0] === 0xC0 && data.length > 1) { lastCmd = data[1]; pending = 0; }
+    if (data[0] === 0xC0 && data[1] === 0x55 && data[2] === 0x02) { bypass = !!(data[3] & 2); if (bypass) { $('keys').hidden = false; drawKeys(); setStatus('Keypad bypass on: press keys on the laser', 'warn'); } else if ($('status').textContent.startsWith('Keypad bypass')) setStatus('Keypad bypass off', 'on'); }
     try { if (chr.writeValueWithResponse) await chr.writeValueWithResponse(data); else await chr.writeValue(data); log(`out  ${hex(data)}  (${what})`); }
     catch (err) { log(`out  ${hex(data)}  (${what}) failed: ${err.message || err}`); }
   }
@@ -283,7 +456,19 @@
   $('btnRead').addEventListener('click', readKnown);
   { const at = store.get('glmScanAt'); if (at && at.next < 256) { $('scanFrom').value = h2(at.next); log(`last scan stopped at command ${h2(at.next)} (${at.at.slice(11, 19)}): if the laser went off, that one did it`); } }
   $('btnScanStop').addEventListener('click', () => { scanStop = true; });
-  TRY.forEach(([name, bytes]) => { const b0 = document.createElement('button'); b0.type = 'button'; b0.textContent = name; b0.disabled = true; b0.className = 'tryb'; b0.addEventListener('click', () => sendFramed(bytes, 'try: ' + name)); $('tryRow').appendChild(b0); });
+  $('btnCensus').addEventListener('click', showCensus);
+  $('btnBypassOff').addEventListener('click', () => sendFramed([0xC0, 0x55, 0x02, 0x01, 0x00], 'keypad bypass off'));
+  function mkBtn(row, name, onClick) { const b0 = document.createElement('button'); b0.type = 'button'; b0.textContent = name; b0.disabled = true; b0.className = 'tryb'; b0.addEventListener('click', onClick); $(row).appendChild(b0); }
+  const num = (id, max) => { const v = parseInt($(id).value, 10); return v >= 0 && v <= max ? v : null; };
+  FN.forEach(([name, m]) => mkBtn('fnRow', name, () => sendFramed([0xC0, 0x55, 0x02, 0xF1, m], m ? `set function ${m} ${name}` : 'which function?')));
+  $('btnFn').addEventListener('click', () => { const m = num('fnNum', 63); if (m === null) { say('Function number must be 0 to 63.'); return; } sendFramed([0xC0, 0x55, 0x02, 0xF1, m], `set function ${m} ${modeName(m)}`); });
+  ASK.forEach(([name, bytes]) => mkBtn('askRow', name, () => sendFramed(bytes, name)));
+  $('btnMem').addEventListener('click', () => { const i = num('memNum', 63); if (i === null) { say('Memory entry must be 0 to 63.'); return; } sendFramed([0xC0, 0x55, 0x02, 0xE9, i], `memory entry ${i}`); });   // sub-command 58: (58 << 2) | 1 = 0xE9
+  $('btnClock').addEventListener('click', setClock);
+  REF.forEach(([name, r]) => mkBtn('refRow', name, () => sendFramed([0xC0, 0x55, 0x02, 0xF9, r], `distance reference ${name}`)));
+  $('btnSb').addEventListener('click', () => { const i = num('sbIdx', 10), v = num('sbVal', 255); if (i === null || v === null) { say('Settings byte must be 0 to 10 and the value 0 to 255.'); return; } writeSettingByte(i, v); });
+  EXP.forEach(([name, bytes]) => mkBtn('expRow', name, () => sendFramed(bytes, name)));
+  $('btnKp').addEventListener('click', () => { const b = num('kpBit', 31); if (b === null) { say('Key bit must be 0 to 31.'); return; } const p = 2 ** b; sendFramed([0xC0, 0x1B, 0x04, p & 0xFF, (p >>> 8) & 0xFF, (p >>> 16) & 0xFF, (p >>> 24) & 0xFF], `keypad pattern bit ${b}`); });
   $('btnTryHex').addEventListener('click', () => { const bytes = $('tryHex').value.trim().split(/[\s,]+/).filter(Boolean).map((x) => parseInt(x, 16)); if (!bytes.length || bytes.some((x) => !(x >= 0 && x < 256))) { say('Type bytes in hex, like c0 56 01 00 (the checksum is added for you).'); return; } sendFramed(bytes, 'try: typed'); });
   // ---------- Find my laser: every device heard, and which ones come and go as the laser's Bluetooth is switched
   const seen = new Map(); let scan = null; let tick = null;
@@ -341,7 +526,7 @@
     const pick = () => { const r = document.createRange(); r.selectNodeContents($('log')); const s = getSelection(); s.removeAllRanges(); s.addRange(r); say('The log is selected: copy it with Ctrl+C (or Copy on the iPad).'); };
     try { navigator.clipboard.writeText(text).then(() => say('Log copied. Paste it to Claude.'), pick); } catch (_) { pick(); }
   });
-  log(`ready. Bluetooth in this browser: ${navigator.bluetooth ? 'yes' : 'no'}; ${window.top === window ? 'opened on its own' : 'inside another page\'s frame'}`);
+  log(`ready (v2, 16 Oct 2026: Bosch document commands, statuses logged). Bluetooth in this browser: ${navigator.bluetooth ? 'yes' : 'no'}; ${window.top === window ? 'opened on its own' : 'inside another page\'s frame'}`);
 })();
 </script>
 

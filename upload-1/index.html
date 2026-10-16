@@ -327,8 +327,18 @@ button, input, select { font: inherit; color: inherit; }
 .lz .lz-beam::before { content: ''; display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #9aa39e; margin-right: 5px; vertical-align: -1px; }
 .lz .lz-beam.on::before { background: #e5332a; box-shadow: 0 0 0 3px rgba(229, 51, 42, 0.18); }
 .lz .lz-func.warn { color: #b45309; font-weight: 600; }
+.lz .lz-fnbtns { display: inline-flex; gap: 4px; } .lz .lz-fnbtns .btn { padding: 2px 8px; font-size: 12px; min-height: 0; }   /* 16b */
+.lz .lz-fnbtns .btn.on { background: #1f4fa8; color: #fff; }
+.lz .lz-warn { color: #b91c1c; font-weight: 700; }
 .lz details.lz-set { font-size: 13px; } .lz details.lz-set summary { cursor: pointer; }
 .lz details.lz-set label { display: flex; gap: 6px; align-items: center; margin-top: 4px; }
+.lz .lz-table h5 { margin: 6px 0 4px; font-size: 13px; }   /* 16a */
+.lz .lz-table table { border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; width: 100%; }
+.lz .lz-table th, .lz .lz-table td { text-align: right; padding: 2px 4px; border-bottom: 1px solid var(--line, #d5ddd7); }
+.lz .lz-table th:first-child, .lz .lz-table td:first-child { text-align: left; }
+.lz .lz-table td.fine { color: #1f7a3a; } .lz .lz-table td.check { color: #b45309; } .lz .lz-table td.big { color: #b91c1c; font-weight: 700; }
+.lz .lz-sum { font-size: 12px; margin: 4px 0; line-height: 1.4; }
+.lz #btnLzBlock.on { background: #1f4fa8; color: #fff; }
 .dim-list .dim { display: flex; gap: 8px; align-items: center; font-variant-numeric: tabular-nums; }
 .dim-list .dim button { padding: 2px 8px; font-size: 12px; }
 #btnDimAdd.on, #btnInspPick.on { background: var(--accent, #1f5f7a); color: #fff; }
@@ -777,21 +787,25 @@ button, input, select { font: inherit; color: inherit; }
         <div class="lz" id="lzPanel" hidden>
           <h4>Laser measuring</h4>
           <div class="lz-row"><button type="button" class="btn" id="btnLzConnect">Connect the laser</button><button type="button" class="btn quiet" id="btnLzFire" disabled title="The laser's own button: first tap aims, second measures">Fire</button><button type="button" class="btn quiet" id="btnLzNow" disabled title="One tap: the laser turns its beam on and measures straight away, wherever it points">Measure now</button><button type="button" class="btn quiet" id="btnLzFind" disabled title="The laser beeps until you stop it here or press any of its buttons">Find the laser</button><span id="lzStatus" class="hint-inline">Not connected</span></div>
-          <div class="lz-info" id="lzInfo" hidden><span class="lz-beam" id="lzBeam">Beam off</span><span class="lz-func" id="lzFunc"></span><span id="lzSerial"></span></div>
+          <div class="lz-info" id="lzInfo" hidden><span class="lz-beam" id="lzBeam">Beam off</span><span class="lz-func" id="lzFunc"></span><span class="lz-fnbtns"><button type="button" class="btn quiet" id="btnLzFnLen">Length</button><button type="button" class="btn quiet" id="btnLzFnInd">Indirect height</button></span><span class="lz-warn" id="lzWarn"></span><span id="lzSerial"></span></div>
           <details class="lz-set" id="lzSet"><summary>Laser settings</summary>
             <label><input type="checkbox" id="lzSetBeep"> Beep</label>
             <label><input type="checkbox" id="lzSetPerm"> Permanent laser (the beam stays on)</label>
             <label><input type="checkbox" id="lzSetAuto" checked> Reconnect by itself if the laser drops out</label>
+            <label><input type="checkbox" id="lzSetRecBeep" checked> Two beeps on the laser when it reconnects</label>
+            <label><input type="checkbox" id="lzSetFunc" checked> Put the laser on Length when it connects (if it is on a function these shots cannot use)</label>
+            <label><input type="checkbox" id="lzSetSig" checked> Beep signals: 1 short = matches (within 10 cm), 3 short = over 30 cm out, long = last shot done</label>
             <div class="note" id="lzSetNote">Sent to the laser each time it connects. Units are kept in metres.</div>
           </details>
           <label class="lz-row">Measure <select id="lzMode"><option value="title">Check the Land Registry title</option><option value="sketch">Draw my boundary from scratch</option></select></label>
           <div class="lz-row" id="lzSketchRow"><button type="button" class="btn quiet" id="btnLzSketch">Sketch corners</button><button type="button" class="btn quiet" id="btnLzSketchClear">Clear sketch</button></div>
           <div class="lz-step" id="lzStep">Place the house first.</div>
           <div class="lz-read" id="lzRead"></div>
-          <div class="lz-row"><button type="button" class="btn" id="btnLzAccept" disabled>Accept</button><button type="button" class="btn quiet" id="btnLzRetake" disabled>Retake</button><button type="button" class="btn quiet" id="btnLzSkip">Skip</button></div>
+          <div class="lz-row"><button type="button" class="btn" id="btnLzAccept" disabled>Accept</button><button type="button" class="btn quiet" id="btnLzRetake" disabled>Retake</button><button type="button" class="btn quiet" id="btnLzSkip">Skip</button><button type="button" class="btn quiet" id="btnLzBlock" disabled title="Something in the way at the house corner: measure this shot from somewhere else">Blocked? Measure from elsewhere</button></div>
           <div class="lz-row"><input type="number" id="lzType" step="0.001" min="0" inputmode="decimal" placeholder="metres"><button type="button" class="btn quiet" id="btnLzType">Use typed reading</button></div>
           <div class="lz-row"><select id="lzHold"><option value="touch">Laser touching the corner</option><option value="chest">Laser held at my chest</option></select><input type="number" id="lzOff" step="1" min="0" max="100" inputmode="numeric" title="How far the laser's back is behind the corner, in cm">cm<button type="button" class="btn quiet" id="btnLzCal">Calibrate</button></div>
           <div class="lz-list" id="lzList"></div>
+          <div class="lz-table" id="lzTableBox" hidden><h5>Measured against Land Registry</h5><div id="lzTable"></div><div class="lz-sum" id="lzSum"></div><button type="button" class="btn quiet" id="btnLzCopy">Copy the table</button></div>
         </div>
         <div class="field" id="compassRow">Top of the plan faces (compass bearing, optional)
           <span style="display:flex;gap:6px;flex-wrap:wrap;align-items:center"><input type="number" id="planTop" min="0" max="360" step="1" inputmode="numeric" placeholder="degrees" style="width:7em">
@@ -4864,7 +4878,7 @@ const EMBEDDED_PLAN = null;
 <script id="ui">
 (() => {
   'use strict';
-  const BUILD = '2026-10-15d';
+  const BUILD = '2026-10-16b';
   const $ = (id) => document.getElementById(id);
   const mapEl = $('map');
   // 05u: Set, inside a lifted floor once it is let go
@@ -10139,6 +10153,7 @@ const EMBEDDED_PLAN = null;
     }
     // 05u: the lifted floor, dragged onto the stack
     // 05v: a title picked; a distance laid
+    if (e.button === 0 && !T.space && S.src && T.lzBlock && (T.lzBlock.stage === 'me' || (T.lzBlock.stage === 'a' && T.lzBlock.ra == null && !T.lzPending))) { lzBlockPlace(s2w(mainVp(), pt.x, pt.y)); return; }   // 16a
     if (e.button === 0 && !T.space && S.src && T.lzSketching) { const w = s2w(mainVp(), pt.x, pt.y); pushUndo(); lzS().sketch.push({ x: +w.x.toFixed(3), y: +w.y.toFixed(3) }); save(); syncLaser(); requestRender(); return; }   // 15a
     if (e.button === 0 && !T.space && S.src && T.inspPick) { if (inspPickAt(pt)) { T.inspPick = false; syncInsp(); } return; }
     if (e.button === 0 && !T.space && S.src && T.dimMode) {
@@ -13715,15 +13730,26 @@ async function postcodeCentroid(pc){
     if (!u8 || u8.length < 4) return null;
     if (lzCrc(u8.subarray(0, u8.length - 1)) !== u8[u8.length - 1]) return { type: 'bad' };
     if (u8[0] !== 0xC0 || u8[1] !== 0x55 || u8.length < 20) return null;
-    const dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength); const f = (o) => dv.getFloat32(o, true); const st = u8[3];
-    if (st === 0x06) { const v = f(7); return Number.isFinite(v) && v > 0 && v < 300 ? { type: 'reading', value: v, level: v, angle: null, slope: v, mode: LZ.mode } : null; }
-    if (st === 0x2a) { const res = f(7); const d = f(11); const a = f(15); if (!(d > 0 && d < 300 && Math.abs(a) <= 90)) return null; const r0 = (a * Math.PI) / 180;
-      return { type: 'reading', value: res, level: d * Math.cos(r0), angle: a, slope: d, rise: d * Math.sin(r0), mode: LZ.mode }; }
-    if (st === 0x42) { const v = f(7); const p1 = f(11); const p2 = f(15);   // 15d: the + button: total, then its two parts
-      return Number.isFinite(v) && v > 0 && v < 600 ? { type: 'reading', value: v, level: v, angle: null, slope: v, parts: [p1, p2], mode: LZ.mode } : null; }
-    if (st === 0xf2) { const m = Math.round(f(7)); if (m >= 0 && m < 64) { LZ.mode = m; return { type: 'mode', mode: m }; } return null; }
-    if (st === 0x02) return { type: 'aim' };
-    return { type: 'other', st };
+    const dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
+    return lzContainer(dv, 3);
+  }
+  // 16b: one 16-byte exchange data container (Bosch MT protocol LRF command set): [0] function << 2 | edge (0 front,
+  // 1 tripod, 2 rear, 3 pin), [1] flags (bit 0 laser on, 1 temperature warning, 2 battery low), [2..3] measurement id,
+  // [4..7] Result, [8..11] Component 1, [12..15] Component 2 (float32 LE); function 63: Result is an int32 error number
+  function lzContainer(dv, off) {
+    const st = dv.getUint8(off); const fl = dv.getUint8(off + 1); const f = (o) => dv.getFloat32(off + o, true);
+    const fn = st >> 2; const edge = st & 3;
+    LZ.flags = fl;
+    const base = { mode: LZ.mode, edge, fn };
+    if (fn === 1) { const v = f(4); return Number.isFinite(v) && v > 0 && v < 300 ? { type: 'reading', value: v, level: v, angle: null, slope: v, ...base } : null; }
+    if (fn === 10) { const res = f(4); const d = f(8); const a = f(12); if (!(d > 0 && d < 300 && Math.abs(a) <= 90)) return null; const r0 = (a * Math.PI) / 180;
+      return { type: 'reading', value: res, level: d * Math.cos(r0), angle: a, slope: d, rise: d * Math.sin(r0), ...base }; }
+    if (fn === 16 || fn === 17) { const v = f(4); const p1 = f(8); const p2 = f(12);   // 15d: the + (and -) button: total, then its two parts
+      return Number.isFinite(v) && v > 0 && v < 600 ? { type: 'reading', value: v, level: v, angle: null, slope: v, parts: [p1, p2], ...base } : null; }
+    if (fn === 60) { const m = Math.round(f(4)); if (m >= 0 && m < 64) { LZ.mode = m; return { type: 'mode', mode: m, edge }; } return null; }
+    if (fn === 63) return { type: 'error', err: dv.getInt32(off + 4, true), edge };
+    if (fn === 0) return { type: 'aim', edge };
+    return { type: 'other', st, fn, edge };
   }
   function lzHex(u8) { return Array.from(u8, (b0) => b0.toString(16).padStart(2, '0')).join(' '); }
   function lzBeep() { try { LZ.audio = LZ.audio || new (window.AudioContext || window.webkitAudioContext)(); const o = LZ.audio.createOscillator(); const g = LZ.audio.createGain(); o.frequency.value = 1320; g.gain.value = 0.08; o.connect(g); g.connect(LZ.audio.destination); o.start(); o.stop(LZ.audio.currentTime + 0.12); } catch (_) { /* no sound */ } }
@@ -13782,7 +13808,21 @@ async function postcodeCentroid(pc){
     if (id && id.length >= 26) { const serial = id[4] | (id[5] << 8) | (id[6] << 16) | (id[7] << 24); const part = String.fromCharCode(...id.slice(16, 26)).replace(/[^0-9A-Z]/g, '');
       LZ.info = { serial: serial >>> 0, part }; }
     await lzApplySettings();
+    // 16b: the laser's function: asked, and put on Length if these shots cannot use it
+    const fr = await lzAsk([0xC0, 0x55, 0x02, 0xF1, 0x00], 0x10, 1500);
+    if (fr) { const c = lzContainer(new DataView(Uint8Array.from(fr).buffer), 0); if (c && c.type === 'mode') LZ.mode = c.mode; }
+    if (LZ.mode != null && LZ.mode !== 1 && LZ.mode !== 10 && lzPrefs().func !== false) await lzSetFunc(1);
     syncLaser();
+  }
+  // 16b: set the laser's function (c0 55 02 f1 <mode>); its mode report (function 60) is the confirmation
+  async function lzSetFunc(m) {
+    if (!LZ.chr) return false;
+    const fr = await lzAsk([0xC0, 0x55, 0x02, 0xF1, m], 0x10, 1500);
+    let ok = false;
+    if (fr) { const c = lzContainer(new DataView(Uint8Array.from(fr).buffer), 0); if (c && c.type === 'mode') { LZ.mode = c.mode; ok = c.mode === m; } }
+    if (!ok) toast(fr ? `The laser stayed on ${LZMODES[LZ.mode] || 'function ' + LZ.mode}.` : 'The laser did not take that function.');
+    T.lzFuncSet = (T.lzFuncSet || 0) + 1;
+    syncLaser(); return ok;
   }
   async function lzApplySettings() {
     const cur = await lzAsk([0xC0, 0x53, 0x00], 0x0b, 1500);
@@ -13802,6 +13842,21 @@ async function postcodeCentroid(pc){
     LZ.setNote = (ok ? 'Laser settings sent.' : 'Laser settings sent, but the laser did not confirm them: check its screen.') + (units ? ' Its units were changed back to metres.' : '');
     T.lzSettingsSent = (T.lzSettingsSent || 0) + 1;
     syncLaser(); return ok;
+  }
+  // 16b: a beep pattern on the laser: lengths in ms, 160 ms apart; patterns queue so they never overlap
+  function lzBeepPattern(lens, delay) {
+    const w = (ms) => new Promise((r) => setTimeout(r, ms));
+    const run = async () => { await w(delay == null ? 500 : delay);
+      for (let k = 0; k < lens.length && LZ.chr; k++) { await lzSend([0xC0, 0x45, 0x00]); await w(lens[k]); await lzSend([0xC0, 0x46, 0x00]); if (k < lens.length - 1) await w(160); }
+      (T.lzPatterns = T.lzPatterns || []).push(lens.slice()); };
+    LZ.bq = (LZ.bq || Promise.resolve()).then(run, run); return LZ.bq;
+  }
+  // 16a: short beeps on the laser itself (its beep on, then off), e.g. two when it has reconnected
+  async function lzBeeps(n) {
+    const w = (ms) => new Promise((r) => setTimeout(r, ms));
+    await w(400);
+    for (let k = 0; k < n && LZ.chr; k++) { await lzSend([0xC0, 0x45, 0x00]); await w(140); await lzSend([0xC0, 0x46, 0x00]); if (k < n - 1) await w(160); }
+    T.lzBeeped = (T.lzBeeped || 0) + n;
   }
   // Measure now: the laser's button twice; the second press as soon as the beam is on (about half a second)
   async function lzMeasureNow() {
@@ -13835,7 +13890,7 @@ async function postcodeCentroid(pc){
       await new Promise((r) => setTimeout(r, k ? 3000 : 600));
       if (LZ.chr || !lzPrefs().auto) break;
       lzSetStatus(`The laser dropped out: reconnecting (try ${k + 1})…`);
-      if (await lzLink(false)) { T.lzReconnects = (T.lzReconnects || 0) + 1; toast('The laser is connected again.'); break; }
+      if (await lzLink(false)) { T.lzReconnects = (T.lzReconnects || 0) + 1; toast('The laser is connected again.'); if (lzPrefs().recBeep !== false) lzBeeps(2); break; }
     }
     LZ.auto = false;
     if (!LZ.chr) { lzSetStatus('Disconnected: turn the laser on and tap Connect the laser'); syncLaser(); }
@@ -13848,20 +13903,27 @@ async function postcodeCentroid(pc){
     const m = LZ.mode; const fe = $('lzFunc');
     if (m == null) { fe.textContent = ''; fe.classList.remove('warn'); }
     else if (m === 1 || m === 10) { fe.textContent = `Function: ${LZMODES[m]}${m === 10 ? ' (its level distance is used)' : ''}`; fe.classList.remove('warn'); }
-    else { fe.textContent = `Function ${LZMODES[m] || 'no. ' + m}: switch the laser to Length for these shots`; fe.classList.add('warn'); }
+    else { fe.textContent = `Function ${LZMODES[m] || 'no. ' + m}: tap Length to switch it`; fe.classList.add('warn'); }
+    $('btnLzFnLen').classList.toggle('on', m === 1); $('btnLzFnInd').classList.toggle('on', m === 10);
+    const fl = LZ.flags || 0; $('lzWarn').textContent = [fl & 4 ? 'Battery low' : '', fl & 2 ? 'Temperature warning' : ''].filter(Boolean).join(' · ');
     $('lzSerial').textContent = LZ.info ? `Serial ${LZ.info.serial}${LZ.info.part ? ' · ' + LZ.info.part : ''}` : '';
     const P = lzPrefs();
     $('lzSetBeep').checked = LZ.set ? LZ.set[2] === 1 : P.beep !== false;
     $('lzSetPerm').checked = LZ.set ? LZ.set[3] === 1 : !!P.perm;
     $('lzSetAuto').checked = P.auto !== false;
+    $('lzSetRecBeep').checked = P.recBeep !== false;
+    $('lzSetFunc').checked = P.func !== false; $('lzSetSig').checked = P.sig !== false;
     $('lzSetNote').textContent = LZ.setNote || 'Sent to the laser each time it connects. Units are kept in metres.';
   }
-  const LZMODES = { 1: 'Length', 10: 'Indirect height' };
+  const LZMODES = { 1: 'Length', 2: 'Continuous', 4: 'Area', 7: 'Volume', 8: 'Angle', 9: 'Continuous angle', 10: 'Indirect height', 11: 'Indirect length', 13: 'Double indirect height',
+    15: 'Wall area', 16: 'Distance +', 17: 'Distance −', 22: 'Level', 23: 'Continuous level', 26: 'Trapezoid' };   // 16b: Bosch's numbers
+  const LZEDGES = ['front edge', 'tripod', 'rear edge', 'pin'];
   function lzIncoming(u8) {
     const r = lzParse(u8); if (!r) return;
     if (r.type === 'mode') { lzSetStatus(`Connected: function ${LZMODES[r.mode] || r.mode}`); lzInfoSync(); return; }
     if (r.type === 'aim') { lzSetStatus('Laser on: aim, then fire again'); return; }
-    if (r.type === 'other') { T.lzNote = 'That reading came from a mode Plot view does not read yet: use Length, or Indirect height on a slope.'; syncLaser(); return; }
+    if (r.type === 'error') { T.lzNote = `Shot failed on the laser${r.err > 1 ? ` (error ${r.err})` : ''}: aim again and retake.`; T.lzPending = null; syncLaser(); return; }   // 16b
+    if (r.type === 'other') { T.lzNote = `That reading came from the laser's ${LZMODES[r.fn] || 'function ' + r.fn}, which these shots do not use: switch to Length (or Indirect height on a slope).`; syncLaser(); return; }
     if (r.type === 'reading') lzReading(r);
   }
   // ---------- guided measuring
@@ -13951,8 +14013,15 @@ async function postcodeCentroid(pc){
       syncLaser(); return;
     }
     T.lzPending = r; T.lzNote = null; syncLaser(); requestRender();
+    // 16b: beep signal: does it match what was expected?
+    if (LZ.chr && lzPrefs().sig !== false && !T.lzBlock) {
+      const st = lzCurrent().step;
+      if (st && (st.kind === 'ray' || st.kind === 'check')) { const used = r.level - (lzR().hold === 'chest' ? lzR().off : 0); const d = Math.abs(used - st.expect);
+        if (d < 0.1) lzBeepPattern([150]); else if (d >= 0.3) lzBeepPattern([150, 150, 150]); }
+    }
   }
   function lzAccept() {
+    if (T.lzBlock) return lzBlockAccept();   // 16a
     const r = T.lzPending; const cur = lzCurrent(); if (!r || !cur.step) return false;
     const L = lzS(); const st = cur.step;
     pushUndo();
@@ -13962,7 +14031,110 @@ async function postcodeCentroid(pc){
     if (st.kind === 'check') Object.assign(shot, { k: st.k, j: st.j });
     L.shots.push(shot); T.lzPending = null;
     lzApply(); save(); syncLaser(); requestRender();
+    if (LZ.chr && lzPrefs().sig !== false) { const c2 = lzCurrent(); if (!c2.step && c2.steps.length) lzBeepPattern([650], 300); }   // 16b: the last shot done
     return true;
+  }
+  // 16a: a shot along a wall line taken from somewhere else (something in the way at the corner).
+  // T.lzBlock = { key, stage: 'me' | 'a' | 'b' | 'pt', me, a: {i, p}, b: {i, p}, ra, rb, M }
+  function lzBlockStep() { const st = lzCurrent().step; return st && st.kind === 'ray' ? st : null; }
+  function lzBlockStart() {
+    const st = lzBlockStep(); if (!st) return;
+    T.lzBlock = { key: st.key, stage: 'me' }; T.lzPending = null; T.lzSketching = false; T.dimMode = false; T.inspPick = false;
+    syncLaser(); requestRender();
+  }
+  function lzBlockCancel() { T.lzBlock = null; T.lzPending = null; syncLaser(); requestRender(); }
+  function lzBlockPlace(w) {
+    const B = T.lzBlock; const O = titleHouse(); if (!B || !O) return false;
+    const st = lzBlockStep(); if (!st || st.key !== B.key) { lzBlockCancel(); return false; }
+    const pair = lzStations(O, w);
+    if (!pair) { toast('From there no two house corners can be seen clearly (or they are over 60 m away). Tap somewhere else.'); return false; }
+    Object.assign(B, { me: { x: w.x, y: w.y }, a: { i: pair.a.i, p: { ...pair.a.p } }, b: { i: pair.b.i, p: { ...pair.b.p } }, stage: 'a', ra: null, rb: null, M: null });
+    syncLaser(); requestRender(); return true;
+  }
+  // where the step's wall line (from + dir t) is r from M: the t nearest what Land Registry says
+  function lzAlongRay(st, M, r) {
+    const fx = st.from.x - M.x; const fy = st.from.y - M.y;
+    const bq = fx * st.dir.x + fy * st.dir.y; const cq = fx * fx + fy * fy - r * r;
+    let disc = bq * bq - cq;
+    if (disc < 0) { if (disc < -0.04) return null; disc = 0; }   // misses by up to ~20 cm: take the nearest point
+    const ts = [-bq - Math.sqrt(disc), -bq + Math.sqrt(disc)].filter((t) => t > 0.02);
+    if (!ts.length) return null;
+    return ts.reduce((p, t) => (Math.abs(t - st.expect) < Math.abs(p - st.expect) ? t : p));
+  }
+  function lzBlockExpect() {
+    const B = T.lzBlock; if (!B || !B.me) return null; const st = lzBlockStep(); if (!st) return null;
+    if (B.stage === 'a') return Math.hypot(B.a.p.x - B.me.x, B.a.p.y - B.me.y);
+    if (B.stage === 'b') return Math.hypot(B.b.p.x - B.me.x, B.b.p.y - B.me.y);
+    if (B.stage === 'pt' && B.M) return Math.hypot(st.to.x - B.M.x, st.to.y - B.M.y);
+    return null;
+  }
+  function lzBlockAccept() {
+    const B = T.lzBlock; const r = T.lzPending; const st = lzBlockStep(); if (!B || !r || !st || !B.me) return false;
+    const d = r.level;   // from where you stand: the laser's own position, no chest offset
+    if (B.stage === 'a') { B.ra = d; B.stage = 'b'; T.lzPending = null; syncLaser(); requestRender(); return true; }
+    if (B.stage === 'b') {
+      B.rb = d; const Dab = Math.hypot(B.b.p.x - B.a.p.x, B.b.p.y - B.a.p.y);
+      const meet = B.ra + B.rb >= Dab - 0.3 && Math.abs(B.ra - B.rb) <= Dab + 0.3;   // the two distances can cross (30 cm grace)
+      const M = meet ? lzSolve(B.a.p, B.ra, B.b.p, B.rb, B.me) : null;
+      if (!M || Math.hypot(M.x - B.me.x, M.y - B.me.y) > 15) { toast('Those two distances do not meet: take both corner shots again.'); Object.assign(B, { stage: 'a', ra: null, rb: null }); T.lzPending = null; syncLaser(); requestRender(); return false; }
+      B.M = M; B.stage = 'pt'; T.lzPending = null; syncLaser(); requestRender(); return true;
+    }
+    if (B.stage === 'pt') {
+      const t = lzAlongRay(st, B.M, d);
+      if (t == null) { toast('That distance does not reach the wall line from where you stand: check you aimed where the red line ends, and retake.'); T.lzPending = null; syncLaser(); return false; }
+      const L = lzS(); pushUndo();
+      L.shots.push({ key: st.key, kind: 'ray', from: { x: st.from.x, y: st.from.y }, dir: { ...st.dir }, side: st.side, corner: st.corner, level: +t.toFixed(4), slope: null, angle: null, mode: r.mode != null ? r.mode : null,
+        hold: 'touch', off: 0, at: new Date().toISOString(), expect: +st.expect.toFixed(4),
+        via: { me: { x: +B.M.x.toFixed(3), y: +B.M.y.toFixed(3) }, a: B.a.i, ra: +B.ra.toFixed(4), b: B.b.i, rb: +B.rb.toFixed(4), r: +d.toFixed(4) } });
+      T.lzBlock = null; T.lzPending = null;
+      lzApply(); save(); syncLaser(); requestRender(); return true;
+    }
+    return false;
+  }
+  function lzBlockText() {
+    const B = T.lzBlock; const st = lzBlockStep(); if (!B || !st) return null;
+    const corner = lzLetter(st.corner);
+    if (B.stage === 'me') return `Blocked at corner ${corner}: tap the plan where you can stand with a clear view of the red dot (where the wall line meets the boundary), and of two house corners.`;
+    if (B.stage === 'a') return `Stand where ME is, laser at your spot. Aim at house corner ${lzLetter(B.a.i)}. About ${lzF(lzBlockExpect())}.`;
+    if (B.stage === 'b') return `Same spot: now aim at house corner ${lzLetter(B.b.i)}. About ${lzF(lzBlockExpect())}.`;
+    return `Same spot: aim at the boundary where the red line ends (in line with the wall from corner ${corner}). About ${lzF(lzBlockExpect())}.`;
+  }
+  // 16a: the measured shots against what Land Registry says
+  function lzTableRows() {
+    const L = lzR(); const n = {};
+    return L.shots.filter((s) => s.kind === 'ray').map((s) => {
+      const used = lzUsed(s); const diff = used - s.expect; const a = Math.abs(diff);
+      n[s.side] = (n[s.side] || 0) + 1;
+      return { from: lzLetter(s.corner), side: s.side, lr: s.expect, measured: used, diff, mark: a < 0.1 ? 'fine' : a < 0.3 ? 'check' : 'big', via: !!s.via };
+    });
+  }
+  function lzTableSum(rows) {
+    if (!rows.length) return null;
+    const big = rows.reduce((p, q) => (Math.abs(q.diff) > Math.abs(p.diff) ? q : p));
+    const t = lzTitleTrace(); const R = inspRing();
+    const area = (P) => (P && P.length > 2 ? Math.abs(Core.polygonArea(P)) : null);
+    return { n: rows.length, fine: rows.filter((q) => q.mark === 'fine').length, check: rows.filter((q) => q.mark === 'check').length, bigN: rows.filter((q) => q.mark === 'big').length,
+      largest: big, titleArea: area(R), measuredArea: t ? area(t.pts) : null };
+  }
+  function lzTableSync() {
+    const box = $('lzTableBox'); if (!box) return;
+    const L = lzR(); const rows = L.mode === 'title' ? lzTableRows() : [];
+    box.hidden = !rows.length; if (!rows.length) return;
+    const sg = (v) => `${v >= 0 ? '+' : '−'}${Math.abs(v).toFixed(2)}`;
+    $('lzTable').innerHTML = `<table><tr><th>Shot</th><th>Land Registry</th><th>Measured</th><th>Difference</th></tr>${rows.map((q) => `<tr><td>From ${q.from}${q.via ? ' *' : ''}</td><td>${q.lr.toFixed(2)} m</td><td>${q.measured.toFixed(2)} m</td><td class="${q.mark}">${sg(q.diff)} m</td></tr>`).join('')}</table>`;
+    const S0 = lzTableSum(rows);
+    $('lzSum').innerHTML = `${S0.n} shot${S0.n === 1 ? '' : 's'}: ${S0.fine} within 10 cm, ${S0.check} 10–30 cm, ${S0.bigN} over 30 cm. Largest: ${sg(S0.largest.diff)} m from ${S0.largest.from}.`
+      + (S0.titleArea != null && S0.measuredArea != null ? `<br>Area: Land Registry ${S0.titleArea.toFixed(1)} m², measured ${S0.measuredArea.toFixed(1)} m² (${sg(S0.measuredArea - S0.titleArea).replace('.00', '')} m²).` : '')
+      + (rows.some((q) => q.via) ? '<br>* measured from elsewhere (something in the way at the corner).' : '');
+    T.lzTable = { rows, sum: S0 };
+  }
+  function lzTableText() {
+    const rows = lzTableRows(); const S0 = lzTableSum(rows); if (!S0) return '';
+    const lines = ['Shot\tLand Registry (m)\tMeasured (m)\tDifference (m)'];
+    rows.forEach((q) => lines.push(`From ${q.from}${q.via ? ' (from elsewhere)' : ''}\t${q.lr.toFixed(2)}\t${q.measured.toFixed(2)}\t${q.diff.toFixed(2)}`));
+    lines.push(`Largest difference\t\t\t${S0.largest.diff.toFixed(2)}`);
+    if (S0.titleArea != null && S0.measuredArea != null) { lines.push(`Area, Land Registry (m²)\t${S0.titleArea.toFixed(1)}`); lines.push(`Area, measured (m²)\t${S0.measuredArea.toFixed(1)}`); }
+    return lines.join('\n');
   }
   // the boundary from the measurements: the title's sides moved to the measured points, or the sketch's corners fixed
   function lzApply() {
@@ -14066,12 +14238,20 @@ async function postcodeCentroid(pc){
     else if (!st) msg = cur.steps.length ? `All ${cur.steps.length} shots done.` : 'Nothing to measure from here.';
     else msg = `Shot ${cur.i + 1} of ${cur.steps.length}: ${lzText(st)}`;
     if (T.lzCal) msg = T.lzCal === 1 ? 'Calibrate: take a shot with the laser touching a corner.' : 'Calibrate: now the same shot with the laser at your chest.';
+    if (T.lzBlock && (!st || st.key !== T.lzBlock.key)) T.lzBlock = null;   // 16a
+    if (T.lzBlock) msg = lzBlockText();
     $('lzStep').textContent = msg;
     const r = T.lzPending;
-    if (r && st) { const used = r.level - (L.hold === 'chest' ? L.off : 0); const diff = used - st.expect;
-      $('lzRead').innerHTML = `Reading ${lzF(used)}${r.parts ? ` <small>(added: ${r.parts.map((q) => q.toFixed(3)).join(' + ')})</small>` : ''}${r.angle != null ? ` <small>(level, ${r.angle.toFixed(1)}°)</small>` : ''} · <span class="${Math.abs(diff) < 0.05 ? 'ok' : 'up'}">${diff >= 0 ? '+' : '−'}${Math.abs(diff).toFixed(2)} m</span>`; }
+    const bx = T.lzBlock ? lzBlockExpect() : null;
+    $('btnLzBlock').disabled = !(st && st.kind === 'ray'); $('btnLzBlock').classList.toggle('on', !!T.lzBlock); $('btnLzBlock').textContent = T.lzBlock ? 'Cancel: back to the corner' : 'Blocked? Measure from elsewhere';
+    if (T.lzBlock) {
+      if (r && bx != null) { const diff = r.level - bx; $('lzRead').innerHTML = `Reading ${lzF(r.level)} · <span class="${Math.abs(diff) < 0.5 ? 'ok' : 'up'}">${diff >= 0 ? '+' : '−'}${Math.abs(diff).toFixed(2)} m</span> <small>from the rough spot tapped</small>`; }
+      else $('lzRead').textContent = r ? `Reading ${lzF(r.level)}` : '';
+    } else if (r && st) { const used = r.level - (L.hold === 'chest' ? L.off : 0); const diff = used - st.expect;
+      $('lzRead').innerHTML = `${r.edge != null && r.edge !== 2 ? `<span class="up">From the laser's ${LZEDGES[r.edge]}, not its rear edge: set Reference to the rear on the laser and retake.</span><br>` : ''}Reading ${lzF(used)}${r.parts ? ` <small>(added: ${r.parts.map((q) => q.toFixed(3)).join(' + ')})</small>` : ''}${r.angle != null ? ` <small>(level, ${r.angle.toFixed(1)}°)</small>` : ''} · <span class="${Math.abs(diff) < 0.05 ? 'ok' : 'up'}">${diff >= 0 ? '+' : '−'}${Math.abs(diff).toFixed(2)} m</span>`; }
     else $('lzRead').textContent = T.lzNote || (r ? `Reading ${lzF(r.level)}` : '');
-    $('btnLzAccept').disabled = !(r && st); $('btnLzRetake').disabled = !r; $('btnLzSkip').disabled = !st;
+    $('btnLzAccept').disabled = !(r && st) || !!(T.lzBlock && T.lzBlock.stage === 'me'); $('btnLzRetake').disabled = !r; $('btnLzSkip').disabled = !st || !!T.lzBlock;
+    lzTableSync();   // 16a
     const box = $('lzList'); box.innerHTML = '';
     L.shots.slice().reverse().slice(0, 30).forEach((s) => { const d = document.createElement('div'); const used = lzUsed(s); const diff = used - s.expect;
       d.textContent = `${s.kind === 'ray' ? `From ${lzLetter(s.corner)} along the wall` : s.kind === 'tri' ? `Corner ${s.k + 1} from ${lzLetter(s.corner)}` : `Check ${s.k + 1} to ${s.j + 1}`}: ${lzF(used)} (${diff >= 0 ? '+' : '−'}${Math.abs(diff).toFixed(2)})`; box.appendChild(d); });
@@ -14091,7 +14271,20 @@ async function postcodeCentroid(pc){
     const t = L.mode === 'title' ? lzTitleTrace() : S.traces.find((x) => x.fromLaser);
     if (t && L.mode === 'title' && t.measuredSides) { c.strokeStyle = '#1f7a3a'; c.lineWidth = 4; c.globalAlpha = 0.7; for (const i of t.measuredSides) { const a = t.pts[i]; const b0 = t.pts[(i + 1) % t.pts.length]; if (!a || !b0) continue; const A = w2s(vp, a.x, a.y); const B = w2s(vp, b0.x, b0.y); c.beginPath(); c.moveTo(A.x, A.y); c.lineTo(B.x, B.y); c.stroke(); } c.globalAlpha = 1; }
     const st = lzCurrent().step;
-    if (st) {
+    const BK = T.lzBlock && st && st.key === T.lzBlock.key ? T.lzBlock : null;   // 16a
+    if (BK) {
+      const me = BK.M || BK.me; const tgt = BK.stage === 'a' ? BK.a.p : BK.stage === 'b' ? BK.b.p : st.to;
+      const Wl = w2s(vp, st.from.x, st.from.y); const Wt = w2s(vp, st.to.x, st.to.y);   // the wall line, faint, to the boundary
+      c.strokeStyle = 'rgba(220, 38, 38, 0.45)'; c.lineWidth = 1.5; c.setLineDash([3, 4]); c.beginPath(); c.moveTo(Wl.x, Wl.y); c.lineTo(Wt.x, Wt.y); c.stroke(); c.setLineDash([]);
+      c.fillStyle = '#dc2626'; c.beginPath(); c.arc(Wt.x, Wt.y, 4.5, 0, Math.PI * 2); c.fill();
+      if (me && BK.stage !== 'me') {
+        const A = w2s(vp, me.x, me.y); const Bt = w2s(vp, tgt.x, tgt.y);
+        c.strokeStyle = '#dc2626'; c.lineWidth = 2.4; c.setLineDash([8, 5]); c.beginPath(); c.moveTo(A.x, A.y); c.lineTo(Bt.x, Bt.y); c.stroke(); c.setLineDash([]);
+        c.fillStyle = '#1f4fa8'; c.strokeStyle = '#ffffff'; c.lineWidth = 2; c.beginPath(); c.arc(A.x, A.y, 9, 0, Math.PI * 2); c.fill(); c.stroke();
+        c.fillStyle = '#ffffff'; c.font = `700 9px ${FONT}`; c.fillText('ME', A.x, A.y + 0.5);
+        T.lzDrawn = { from: { ...me }, to: { ...tgt }, blocked: BK.stage };
+      } else T.lzDrawn = { from: null, to: { ...st.to }, blocked: 'me' };
+    } else if (st) {
       const A = w2s(vp, st.from.x, st.from.y); const B = w2s(vp, st.to.x, st.to.y);
       c.strokeStyle = '#dc2626'; c.lineWidth = 2.4; c.setLineDash([8, 5]); c.beginPath(); c.moveTo(A.x, A.y); c.lineTo(B.x, B.y); c.stroke(); c.setLineDash([]);
       c.fillStyle = '#dc2626'; c.beginPath(); c.arc(B.x, B.y, 4.5, 0, Math.PI * 2); c.fill();
@@ -14139,11 +14332,18 @@ async function postcodeCentroid(pc){
   $('lzSetBeep').addEventListener('change', (e) => { const P = lzPrefs(); P.beep = e.target.checked; lzSavePrefs(P); if (LZ.chr) lzApplySettings(); });
   $('lzSetPerm').addEventListener('change', (e) => { const P = lzPrefs(); P.perm = e.target.checked; lzSavePrefs(P); if (LZ.chr) lzApplySettings(); });
   $('lzSetAuto').addEventListener('change', (e) => { const P = lzPrefs(); P.auto = e.target.checked; lzSavePrefs(P); });
+  $('lzSetRecBeep').addEventListener('change', (e) => { const P = lzPrefs(); P.recBeep = e.target.checked; lzSavePrefs(P); });   // 16a
+  $('lzSetFunc').addEventListener('change', (e) => { const P = lzPrefs(); P.func = e.target.checked; lzSavePrefs(P); });   // 16b
+  $('lzSetSig').addEventListener('change', (e) => { const P = lzPrefs(); P.sig = e.target.checked; lzSavePrefs(P); });
+  $('btnLzFnLen').addEventListener('click', () => lzSetFunc(1));
+  $('btnLzFnInd').addEventListener('click', () => lzSetFunc(10));
   $('lzMode').addEventListener('change', (e) => { pushUndo(); T.lzShow = true; lzS().mode = e.target.value; T.lzPending = null; T.lzSketching = false; save(); syncLaser(); requestRender(); });
   $('btnLzSketch').addEventListener('click', () => { T.lzSketching = !T.lzSketching; T.dimMode = false; T.inspPick = false; if (!T.lzSketching) { lzApply(); save(); } syncLaser(); requestRender(); });
   $('btnLzSketchClear').addEventListener('click', () => { pushUndo(); const L = lzS(); L.sketch = []; L.shots = L.shots.filter((s) => s.kind === 'ray'); L.skipped = L.skipped.filter((k) => k.startsWith('r:')); save(); syncLaser(); requestRender(); });
   $('btnLzAccept').addEventListener('click', () => lzAccept());
   $('btnLzRetake').addEventListener('click', () => { T.lzPending = null; syncLaser(); });
+  $('btnLzBlock').addEventListener('click', () => { if (T.lzBlock) lzBlockCancel(); else lzBlockStart(); });   // 16a
+  $('btnLzCopy').addEventListener('click', async () => { const tx = lzTableText(); try { await navigator.clipboard.writeText(tx); toast('Table copied: paste it into a spreadsheet or an email.'); } catch (_) { deliver('measured-vs-land-registry.txt', tx); } });
   $('btnLzSkip').addEventListener('click', () => { const st = lzCurrent().step; if (!st) return; pushUndo(); lzS().skipped.push(st.key); T.lzPending = null; save(); syncLaser(); requestRender(); });
   $('btnLzType').addEventListener('click', () => { const v = parseFloat($('lzType').value); if (!(v > 0 && v < 300)) { toast('Type the reading in metres, like 6.49.'); return; } $('lzType').value = ''; lzReading({ type: 'reading', value: v, level: v, angle: null, slope: v, mode: null, typed: true }); });
   $('lzType').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('btnLzType').click(); } });
@@ -15046,6 +15246,14 @@ async function postcodeCentroid(pc){
     laserParse(hex) { const u8 = new Uint8Array(hex.trim().split(/\s+/).map((x) => parseInt(x, 16))); const r = lzParse(u8); return r; },
     laserFrame(bytes) { return lzHex(lzFrame(bytes)); },
     laserNow() { return lzMeasureNow(); },
+    laserBlock(on) { if (on) lzBlockStart(); else lzBlockCancel(); return T.lzBlock ? { ...T.lzBlock } : null; },
+    laserBlockPlace(x, y) { lzBlockPlace({ x, y }); return T.lzBlock ? JSON.parse(JSON.stringify(T.lzBlock)) : null; },
+    laserBlockState() { syncLaser(); return T.lzBlock ? { ...JSON.parse(JSON.stringify(T.lzBlock)), text: $('lzStep').textContent, expect: lzBlockExpect(), drawn: T.lzDrawn || null } : null; },
+    laserTable() { syncLaser(); return { shown: !$('lzTableBox').hidden, html: $('lzTable').innerHTML, sum: $('lzSum').textContent, text: lzTableText(), data: T.lzTable ? JSON.parse(JSON.stringify(T.lzTable)) : null }; },
+    laserBeeped() { return T.lzBeeped || 0; },
+    laserPatterns() { return (T.lzPatterns || []).slice(); },
+    laserSetFunc(m) { return lzSetFunc(m); },
+    laserFlags() { lzInfoSync(); return { flags: LZ.flags || 0, warn: $('lzWarn').textContent, func: $('lzFunc').textContent, mode: LZ.mode, read: $('lzRead').innerHTML, note: T.lzNote || null }; },
     laserFind(on) { return lzFind(on); },
     laserData(hex) { lzData(new Uint8Array(hex.trim().split(/\s+/).map((x) => parseInt(x, 16)))); return { beam: !!LZ.beam, mode: LZ.mode, pending: T.lzPending || null }; },
     laserInfo() { lzInfoSync(); return { connected: !!LZ.chr, beam: !!LZ.beam, mode: LZ.mode, info: LZ.info || null, set: LZ.set || null, note: LZ.setNote || '', prefs: lzPrefs(), reconnects: T.lzReconnects || 0, sent: T.lzSettingsSent || 0,
