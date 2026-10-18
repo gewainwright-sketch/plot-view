@@ -5054,7 +5054,7 @@ const EMBEDDED_PLAN = null;
 <script id="ui">
 (() => {
   'use strict';
-  const BUILD = '2026-10-16f';
+  const BUILD = '2026-10-16g';
   const $ = (id) => document.getElementById(id);
   const mapEl = $('map');
   // 05u: Set, inside a lifted floor once it is let go
@@ -5277,9 +5277,14 @@ const EMBEDDED_PLAN = null;
     requestRender();
   }
   // White paper knocked out, lines kept in the theme's ink colour
-  function inkFor(src) {
+  // 16g: raw: the drawing with only deleted floors rubbed out (to draw a lifted or stacked floor from)
+  function inkMoved(src) { return src === S.src ? [...new Set([...(S.show.floorsOver || []).map((o) => o.k), ...(T.lift ? [T.lift.k] : [])])] : []; }
+  function inkFor(src, raw) {
     const colour = T.col.ink;
-    if (src.ink && src.ink.colour === colour) return src.ink.canvas;
+    const moved = raw ? [] : inkMoved(src);
+    const key = `${colour}|${moved.join(',')}`;
+    const slot = raw ? 'inkRaw' : 'ink';
+    if (src[slot] && src[slot].colour === colour && (raw || src[slot].key === key)) return src[slot].canvas;
     const c = document.createElement('canvas');
     c.width = src.w; c.height = src.h;
     const x = c.getContext('2d');
@@ -5294,7 +5299,7 @@ const EMBEDDED_PLAN = null;
     }
     x.putImageData(id, 0, 0);
     // 05g: removed floors rubbed off (their outline and 0.3 m round it, for the walls and labels)
-    const gone = src === S.src ? (S.show.floorGone || []) : [];
+    const gone = src === S.src ? [...(S.show.floorGone || []), ...moved] : [];   // 16g: and the floors moved onto the stack
     if (gone.length && src.floors) {
       // 16c: its whole box (0.3 m round), less the floors still in use (and 0.3 m round them): a floor whose outline
       // was read short left part of a room behind
@@ -5316,7 +5321,7 @@ const EMBEDDED_PLAN = null;
       });
       x.save(); x.globalCompositeOperation = 'destination-out'; x.drawImage(mk, 0, 0); x.restore();
     }
-    src.ink = { colour, canvas: c };
+    src[slot] = { colour, key, canvas: c };
     return c;
   }
   function loadImage(url) {
@@ -7867,8 +7872,11 @@ const EMBEDDED_PLAN = null;
       let best = null;
       const R = pad;
       for (let tu = bc.u - R; tu <= bc.u + R; tu += 4) for (let tv = bc.v - R; tv <= bc.v + R; tv += 4) { const s2 = score(tu, tv, 3); if (!best || s2 > best.s) best = { s: s2, tu, tv }; }
-      const b0 = { ...best };
-      for (let tu = b0.tu - 4; tu <= b0.tu + 4; tu += 1) for (let tv = b0.tv - 4; tv <= b0.tv + 4; tv += 1) { const s2 = score(tu, tv, 1); if (s2 > best.s) best = { s: s2, tu, tv }; }
+      // 16g: front walls together (he draws the front at the bottom), slid across to the best lie
+      { const tvF = bB.v1 - bU.v1 + cv; let bf = null;
+        for (let tu = bc.u - R; tu <= bc.u + R; tu += 3) { const s2 = score(tu, tvF, 3); if (!bf || s2 > bf.s) bf = { s: s2, tu, tv: tvF }; }
+        const f0 = bf.tu; for (let tu = f0 - 3; tu <= f0 + 3; tu++) { const s2 = score(tu, tvF, 1); if (s2 > bf.s) bf = { s: s2, tu, tv: tvF }; }
+        best = bf; }
       const moved = U.map((q) => ({ u: q.u - cu + best.tu, v: q.v - cv + best.tv }));
       // what it covers beyond the base
       const um = polyRaster(moved, ex0, ey0, EW, EH, 1);
@@ -7924,6 +7932,32 @@ const EMBEDDED_PLAN = null;
     for (let a = -3; a <= 3; a++) for (let b = -3; b <= 3; b++) { const s = liftScore(P, b0.du + a, b0.dv + b, 1); if (s > best.s || (s === best.s && Math.hypot(a, b) < 0.5)) best = { s, du: b0.du + a, dv: b0.dv + b }; }
     return best.s >= 0.5 ? { du: best.du, dv: best.dv, snapped: true, s: +best.s.toFixed(3) } : { du, dv, snapped: false, s: +best.s.toFixed(3) };
   }
+  // 16g: a corner within 12 screen px (at least 5 cm) of one of the other floor's goes exactly onto it; else each way
+  // separately, a wall in line within that distance lines up
+  function liftSnapLines(L, du, dv) {
+    const P = L.prep; if (!P) return { du, dv, snapped: false };
+    const vp = mainVp(); const r = Math.max(0.05 / S.plan.s, 12 / (vp.zoom * S.plan.s));
+    let best = null;
+    for (const u of P.U) for (const b of P.B) { const d = Math.hypot(u.u + du - b.u, u.v + dv - b.v); if (d <= r && (!best || d < best.d)) best = { d, du: b.u - u.u, dv: b.v - u.v, at: { u: b.u, v: b.v } }; }
+    if (best) return { du: best.du, dv: best.dv, snapped: true, how: 'corner', at: best.at, s: +liftScore(P, best.du, best.dv, 1).toFixed(3) };
+    const lines = (Q, axis) => { const out = []; for (let i = 0; i < Q.length; i++) { const a = Q[i]; const b = Q[(i + 1) % Q.length]; if (axis === 'u' ? Math.abs(a.u - b.u) < 1 : Math.abs(a.v - b.v) < 1) out.push(axis === 'u' ? (a.u + b.u) / 2 : (a.v + b.v) / 2); } return out; };
+    let nu = du; let nv = dv; let hit = false;
+    let bu = null; for (const x of lines(P.U, 'u')) for (const y of lines(P.B, 'u')) { const d = Math.abs(x + du - y); if (d <= r && (!bu || d < bu.d)) bu = { d, du: y - x }; }
+    let bv = null; for (const x of lines(P.U, 'v')) for (const y of lines(P.B, 'v')) { const d = Math.abs(x + dv - y); if (d <= r && (!bv || d < bv.d)) bv = { d, dv: y - x }; }
+    if (bu) { nu = bu.du; hit = true; } if (bv) { nv = bv.dv; hit = true; }
+    return { du: nu, dv: nv, snapped: hit, how: hit ? 'line' : null, at: null, s: +liftScore(P, nu, nv, 1).toFixed(3) };
+  }
+  // 16g: where a floor goes when lifted: front walls together (the bottom of the plan), slid across to its best lie
+  function liftStart(P) {
+    const mx = (a, f) => f(...a); const B = P.B; const U = P.U;
+    const dv = mx(B.map((q) => q.v), Math.max) - mx(U.map((q) => q.v), Math.max);
+    const lo = mx(B.map((q) => q.u), Math.min) - mx(U.map((q) => q.u), Math.max); const hi = mx(B.map((q) => q.u), Math.max) - mx(U.map((q) => q.u), Math.min);
+    const left = mx(B.map((q) => q.u), Math.min) - mx(U.map((q) => q.u), Math.min);
+    let best = { s: liftScore(P, left, dv, 2), du: left };
+    for (let du = Math.ceil(lo); du <= hi; du += 3) { const s = liftScore(P, du, dv, 3); if (s > best.s + 1e-9) best = { s, du }; }
+    const b0 = best.du; for (let du = b0 - 3; du <= b0 + 3; du++) { const s = liftScore(P, du, dv, 1); if (s > best.s + 1e-9) best = { s, du }; }
+    return { du: best.du, dv };
+  }
   function liftedPx(L) { const P = L.prep; return P ? P.U.map((q) => ({ u: q.u + L.du, v: q.v + L.dv })) : []; }
   function pxToWorld(P) { return P.map((q) => { const w = Core.imgToWorld(S.plan, q.u, q.v); return { x: +w.x.toFixed(3), y: +w.y.toFixed(3) }; }); }
   function liftFloor(k, at) {
@@ -7932,10 +7966,11 @@ const EMBEDDED_PLAN = null;
     const L = { k, du: 0, dv: 0, dropped: false };
     L.prep = liftPrep(L); if (!L.prep) return false;
     if (at) { L.du = at.du; L.dv = at.dv; L.dropped = true; }
+    else { const st = liftStart(L.prep); const sn = liftSnapLines(L, st.du, st.dv); L.du = sn.du; L.dv = sn.dv; L.snapped = sn.snapped; L.snapAt = sn.at || null; L.dropped = true; }   // 16g: straight onto the floor below
     T.lift = L;
     refresh(); requestRender();
     const f = floorOrder().find((q) => q.k === k);
-    toast(`${f ? floorName(f) : 'The floor'} lifted: drag it onto ${floorName(floorOrder().find((q) => q.k === S.src.floors.indexOf(L.prep.base)) || { k: -1, n: 1 })}; its walls snap onto the other's when they come close. Let go, then Set.`);
+    toast(`${f ? floorName(f) : 'The floor'} lifted: drag it onto ${floorName(floorOrder().find((q) => q.k === S.src.floors.indexOf(L.prep.base)) || { k: -1, n: 1 })}; it is laid on it front to front: drag it to where it sits (a corner snaps onto a corner), then Set.`);   // 16g
     return true;
   }
   function cancelLift(quiet) { if (!T.lift) return; T.lift = null; const b = $('btnFloorSet'); if (b) b.hidden = true; if (!quiet) { refresh(); requestRender(); } }
@@ -7979,7 +8014,7 @@ const EMBEDDED_PLAN = null;
     const sets = (S.show.floorsOver || []).filter((o) => o.pts && o.base).slice().sort((a, b) => (+a.level || 0) - (+b.level || 0));
     sets.forEach((o, j) => {
       c.save();
-      ring(o.pts); c.globalAlpha = 0.62; c.fillStyle = j ? '#e6effa' : '#dbe8f7'; c.fill(); c.globalAlpha = 1;
+      ring(o.pts); c.globalAlpha = 0.3; c.fillStyle = j ? '#e6effa' : '#dbe8f7'; c.fill(); c.globalAlpha = 1;   // 16g: lighter, the floor below shows
       // the overhang
       c.save(); c.beginPath(); c.rect(-1e5, -1e5, 2e5 + vp.W, 2e5 + vp.H);
       o.base.forEach((q, i) => { const s = w2s(vp, q.x, q.y); if (i) c.lineTo(s.x, s.y); else c.moveTo(s.x, s.y); }); c.closePath(); c.clip('evenodd');
@@ -7987,6 +8022,7 @@ const EMBEDDED_PLAN = null;
       c.fillStyle = HOUSE_LOOK.fill; c.fillRect(0, 0, vp.W, vp.H);
       c.strokeStyle = 'rgba(31,63,122,0.55)'; c.lineWidth = 1; c.beginPath(); for (let y = 0; y < vp.H; y += 6) { c.moveTo(0, y + 0.5); c.lineTo(vp.W, y + 0.5); } c.stroke();
       c.restore();
+      if (o.du != null && o.dv != null) drawFloorInk(c, vp, dpr, o.k, o.du, o.dv, () => ring(o.pts), 0.5);   // 16g: its drawing goes with it, over the overhang's lines
       ring(o.pts); c.strokeStyle = HOUSE_LOOK.edge; c.lineWidth = 1.6; c.stroke();
       let x = 0; let y = 0; o.pts.forEach((q) => { x += q.x / o.pts.length; y += q.y / o.pts.length; }); const s = w2s(vp, x, y);
       c.font = '600 12px system-ui, sans-serif'; const txt = `${o.name || 'Floor'}${o.extra >= 0.5 ? `: ${o.extra.toFixed(1)} m² past` : ''}`; const tw = c.measureText(txt).width + 10;
@@ -7999,22 +8035,32 @@ const EMBEDDED_PLAN = null;
     const us = L.prep.U.map((q) => q.u); const vs = L.prep.U.map((q) => q.v);
     const u0 = Math.max(0, Math.floor(Math.min(...us)) - 4); const v0 = Math.max(0, Math.floor(Math.min(...vs)) - 4);
     const u1 = Math.min(S.src.w, Math.ceil(Math.max(...us)) + 4); const v1 = Math.min(S.src.h, Math.ceil(Math.max(...vs)) + 4);
-    c.save();
-    ring(PW); c.clip();
-    const k = S.plan.s * vp.zoom; const e = (S.plan.x0 - vp.cx) * vp.zoom + vp.W / 2; const ff = (vp.cy - S.plan.y0) * vp.zoom + vp.H / 2;
-    if (vp.rot) { const o0 = i2sVp(vp, L.du, L.dv); affineTo(c, dpr, o0, i2sVp(vp, L.du + 1, L.dv), i2sVp(vp, L.du, L.dv + 1)); } else
-    c.setTransform(dpr * k, 0, 0, dpr * k, dpr * (e + L.du * k), dpr * (ff + L.dv * k));
-    c.fillStyle = '#ffffff'; c.fillRect(u0, v0, u1 - u0, v1 - v0);
-    try { c.drawImage(inkFor(S.src), u0, v0, u1 - u0, v1 - v0, u0, v0, u1 - u0, v1 - v0); } catch (_) { /* no picture */ }
-    c.setTransform(dpr, 0, 0, dpr, 0, 0);
-    c.globalAlpha = 0.35; c.fillStyle = '#93c5fd'; c.fillRect(0, 0, vp.W, vp.H); c.globalAlpha = 1;
-    c.restore();
+    // 16g: see-through: a faint blue, then its drawing over the floor below
+    c.save(); ring(PW); c.clip(); c.globalAlpha = 0.16; c.fillStyle = '#93c5fd'; c.fillRect(0, 0, vp.W, vp.H); c.restore();
+    drawFloorInk(c, vp, dpr, L.k, L.du, L.dv, () => ring(PW), 0.8);
+    void u0; void v0; void u1; void v1;
     c.save(); ring(PW); c.setLineDash([8, 5]); c.lineWidth = 2.2; c.strokeStyle = L.snapped ? '#15803d' : HOUSE_LOOK.edge; c.stroke(); c.restore();
+    if (L.snapAt) { const w = Core.imgToWorld(S.plan, L.snapAt.u, L.snapAt.v); const s = w2s(vp, w.x, w.y); c.save(); c.fillStyle = '#15803d'; c.strokeStyle = '#ffffff'; c.lineWidth = 2; c.beginPath(); c.arc(s.x, s.y, 6, 0, Math.PI * 2); c.fill(); c.stroke(); c.restore(); }   // 16g
     void f;
     if (btn) {
       let x = 0; let y = 0; PW.forEach((q) => { x += q.x / PW.length; y += q.y / PW.length; }); const s = w2s(vp, x, y);
       btn.hidden = !(L.dropped && !L.dragging); btn.style.left = `${s.x}px`; btn.style.top = `${s.y}px`;
     }
+  }
+  // 16g: a floor's own drawing at (du, dv), clipped to its outline there, see-through
+  function drawFloorInk(c, vp, dpr, k, du, dv, ring, alpha) {
+    const f = S.src.floors[k]; if (!f) return;
+    const us = f.pts.map((q) => q.u); const vs = f.pts.map((q) => q.v);
+    const u0 = Math.max(0, Math.floor(Math.min(...us)) - 4); const v0 = Math.max(0, Math.floor(Math.min(...vs)) - 4);
+    const u1 = Math.min(S.src.w, Math.ceil(Math.max(...us)) + 4); const v1 = Math.min(S.src.h, Math.ceil(Math.max(...vs)) + 4);
+    c.save();
+    ring(); c.clip();
+    const kz = S.plan.s * vp.zoom; const e = (S.plan.x0 - vp.cx) * vp.zoom + vp.W / 2; const ff = (vp.cy - S.plan.y0) * vp.zoom + vp.H / 2;
+    if (vp.rot) { const o0 = i2sVp(vp, du, dv); affineTo(c, dpr, o0, i2sVp(vp, du + 1, dv), i2sVp(vp, du, dv + 1)); } else
+    c.setTransform(dpr * kz, 0, 0, dpr * kz, dpr * (e + du * kz), dpr * (ff + dv * kz));
+    c.globalAlpha = alpha;
+    try { c.drawImage(inkFor(S.src, true), u0, v0, u1 - u0, v1 - v0, u0, v0, u1 - u0, v1 - v0); } catch (_) { /* no picture */ }
+    c.restore();
   }
   function drawFloorsOver(c, vp) {
     for (const o of S.show.floorsOver) {
@@ -9684,6 +9730,7 @@ const EMBEDDED_PLAN = null;
     else if (what === 'gone') { if (!g.includes(k)) g.push(k); if (S.show.floorUse === k) S.show.floorUse = null; }
     else if (what === 'back') { const i = g.indexOf(k); if (i >= 0) g.splice(i, 1); }
     S.show.floorGone = g;
+    if (S.src) S.src.inkRaw = null;   // 16g
     // 16c: the walls found on a floor go with it
     if (what === 'gone' && S.src && S.src.floors && S.src.floors[k]) {
       const poly = S.src.floors[k].pts.map((q) => ({ x: q.u, y: q.v }));
@@ -10696,8 +10743,8 @@ const EMBEDDED_PLAN = null;
     if (gesture && gesture.type === 'lift' && T.lift) {   // 05u
       const w = s2w(mainVp(), pt.x, pt.y);
       const du = gesture.du0 + (w.x - gesture.w0.x) / S.plan.s; const dv = gesture.dv0 - (w.y - gesture.w0.y) / S.plan.s;
-      const sn = liftSnap(T.lift, du, dv);
-      T.lift.du = sn.du; T.lift.dv = sn.dv; T.lift.snapped = sn.snapped; T.lift.score = sn.s;
+      const sn = liftSnapLines(T.lift, du, dv);   // 16g
+      T.lift.du = sn.du; T.lift.dv = sn.dv; T.lift.snapped = sn.snapped; T.lift.score = sn.s; T.lift.snapAt = sn.at || null; T.lift.how = sn.how;
       requestRender();
       return;
     }
@@ -15829,7 +15876,9 @@ async function postcodeCentroid(pc){
     floorTitles() { return floorTitles().map((r, k) => (r ? { k, text: r.text, name: r.name, level: r.level, score: r.score } : { k, name: null })); },
     floorNames() { return floorOrder().map((f) => floorName(f)); },
     liftFloor(k) { return liftFloor(k); },
-    lift() { const L = T.lift; return L ? { k: L.k, du: L.du, dv: L.dv, dropped: !!L.dropped, snapped: !!L.snapped, score: L.score } : null; },
+    lift() { const L = T.lift; return L ? { k: L.k, du: L.du, dv: L.dv, dropped: !!L.dropped, snapped: !!L.snapped, score: L.score, how: L.how || null, at: L.snapAt || null } : null; },
+    liftCorners() { const L = T.lift; if (!L) return null; return { B: L.prep.B.map((q) => ({ u: q.u, v: q.v })), U: L.prep.U.map((q) => ({ u: q.u + L.du, v: q.v + L.dv })), ppm: 1 / S.plan.s }; },
+    inkAlphaRaw(u, v) { if (!S.src) return null; const c = inkFor(S.src, true); return c.getContext('2d').getImageData(Math.round(u), Math.round(v), 1, 1).data[3]; },
     liftScreen(du, dv) { const L = T.lift; if (!L) return null; const P = liftedPx({ ...L, du: du == null ? L.du : du, dv: dv == null ? L.dv : dv }); const vp = mainVp(); let x = 0; let y = 0; for (const q of P) { const w = Core.imgToWorld(S.plan, q.u, q.v); const s = w2s(vp, w.x, w.y); x += s.x / P.length; y += s.y / P.length; } const r = cv.getBoundingClientRect(); return { x: r.left + x, y: r.top + y }; },
     liftBest() { const L = T.lift; if (!L) return null; const B = L.prep.B; const U = L.prep.U; const mu = (a) => Math.min(...a.map((q) => q.u)); const mv = (a) => Math.min(...a.map((q) => q.v)); return { du: mu(B) - mu(U), dv: mv(B) - mv(U), pxm: 1 / S.plan.s }; },
     stackForPlot() { return stackForPlot(); },
