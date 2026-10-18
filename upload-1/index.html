@@ -339,6 +339,7 @@ button, input, select { font: inherit; color: inherit; }
 .lz .lz-table td.fine { color: #1f7a3a; } .lz .lz-table td.check { color: #b45309; } .lz .lz-table td.big { color: #b91c1c; font-weight: 700; }
 .lz .lz-sum { font-size: 12px; margin: 4px 0; line-height: 1.4; }
 .lz #btnLzBlock.on { background: #1f4fa8; color: #fff; }
+.lz #btnLzRev.on { background: #1f4fa8; color: #fff; }
 .dim-list .dim { display: flex; gap: 8px; align-items: center; font-variant-numeric: tabular-nums; }
 .dim-list .dim button { padding: 2px 8px; font-size: 12px; }
 #btnDimAdd.on, #btnInspPick.on { background: var(--accent, #1f5f7a); color: #fff; }
@@ -414,6 +415,32 @@ button, input, select { font: inherit; color: inherit; }
   .banner { top: 8px; font-size: 14px; }
   .banner .long { display: none; }
 }
+
+/* 16d: tool buttons in the right-hand menu, the folded left menu, Boundary / Plot kept at the top */
+.sec-tools { display: flex; gap: 6px; flex-wrap: wrap; }
+.tool-btn[aria-pressed="true"] { background: var(--ink); color: var(--paper-2); border-color: var(--ink); }
+.app.rail-slim .rail > button:not(#btnMe):not(#btnUndo):not(#btnRedo):not(#railFold), .app.rail-slim .rail > .rule { display: none; }
+#railFold[aria-expanded="false"] svg { transform: rotate(180deg); }
+/* Boundary / Plot kept at the top: outside the part that scrolls */
+.panel { overflow: hidden; }
+.panel-body { overflow-y: auto; min-height: 0; }
+.panel > .menu-switch { display: flex; width: max-content; margin: 12px auto 2px; flex: none; }
+details.adv { border-top: 1px solid var(--rule); padding-top: 8px; display: flex; flex-direction: column; gap: 10px; }
+details.adv > summary { cursor: pointer; font-weight: 600; color: var(--ink-2); }
+details.adv[open] > :not(summary) { margin-top: 8px; }
+
+/* 16e: laying the plan on the map */
+.plan-bar { position: absolute; left: 50%; top: 10px; transform: translateX(-50%); z-index: 8; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: center;
+  background: var(--paper-2); border: 1px solid var(--rule); border-radius: 10px; padding: 6px 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.12); max-width: calc(100% - 24px); }
+.plan-bar-btns { display: flex; gap: 4px; flex-wrap: wrap; }
+.plan-bar .btn { padding: 4px 8px; }
+
+/* 16f: the Me bar on the map */
+.me-bar { position: absolute; left: 50%; bottom: 44px; transform: translateX(-50%); z-index: 8; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: center;
+  background: var(--paper-2); border: 1px solid var(--rule); border-radius: 10px; padding: 6px 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.12); max-width: calc(100% - 24px); font-size: 13.5px; }
+.me-bar-row { display: flex; gap: 4px; align-items: center; }
+.me-bar input { width: 6.5em; }
+.me-bar .btn { padding: 4px 8px; }
 
 /* Photos from the video */
 .trace-row .photo { border: 1px solid var(--rule); background: var(--paper-2); color: var(--ink-2); font: inherit; font-size: 12.5px; padding: 2px 7px; border-radius: 6px; cursor: pointer; white-space: nowrap; }
@@ -526,6 +553,10 @@ button, input, select { font: inherit; color: inherit; }
 <body>
 <div class="app" id="app">
   <nav class="rail" aria-label="Tools">
+    <button type="button" id="railFold" aria-expanded="true" title="Fold the left menu (Me, Undo and Redo stay)" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+      <span>Less</span>
+    </button>
     <button type="button" data-tool="move" aria-pressed="true" title="Move (V)">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3"/></svg>
       <span>Move</span>
@@ -534,17 +565,9 @@ button, input, select { font: inherit; color: inherit; }
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h16M2.5 14.5l3-5M18.5 14.5l3-5M4 8v8M20 8v8"/></svg>
       <span>Measure</span>
     </button>
-    <button type="button" data-tool="origin" aria-pressed="false" title="Scan start (S)">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4l7.5 13h-15z"/><circle cx="12" cy="12.6" r="1.4" fill="currentColor" stroke="none"/></svg>
-      <span>Scan start</span>
-    </button>
     <button type="button" data-tool="crop" aria-pressed="false" title="Crop (C)">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3v14h14M3 7h14v14"/></svg>
       <span>Crop</span>
-    </button>
-    <button type="button" data-tool="align" aria-pressed="false" title="Align scan (A)" disabled>
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 9h6v6H9z"/><path d="M4.6 10.5A7.6 7.6 0 0117.2 6"/><path d="M17.6 2.6l-.4 3.4-3.4-.4"/><path d="M19.4 13.5A7.6 7.6 0 016.8 18"/><path d="M6.4 21.4l.4-3.4 3.4.4"/></svg>
-      <span>Align scan</span>
     </button>
     <button type="button" data-tool="trace" aria-pressed="false" title="Trace (T)">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18L9 6l5 9 6-10"/><circle cx="4" cy="18" r="1.7"/><circle cx="9" cy="6" r="1.7"/><circle cx="14" cy="15" r="1.7"/><circle cx="20" cy="5" r="1.7"/></svg>
@@ -560,6 +583,10 @@ button, input, select { font: inherit; color: inherit; }
       <span>Fit</span>
     </button>
     <div class="gap" role="presentation"></div>
+    <button type="button" id="btnMe" aria-pressed="false" title="Me: tap where you stand: the distance to every corner and wall shows, to check with a laser">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5.5" r="2.6"/><path d="M12 8.6v6.4M7 11.5h10M8.5 21l3.5-6 3.5 6"/></svg>
+      <span>Place me</span>
+    </button>
     <button type="button" id="btnUndo" title="Undo (right-click or Ctrl+Z)">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 010 12h-3"/></svg>
       <span>Undo</span>
@@ -611,6 +638,23 @@ button, input, select { font: inherit; color: inherit; }
       </div>
       <p class="walk-help">Drag to look round. Wheel or W and S to walk, A and D sideways, Q and E down and up (Shift: bigger steps). With Trace, click to place a point on what the scan measured; it lands on the map too. Right-click undoes. The red lines are the house as the plan has it: move the scan with Free move until they sit on the real wall.</p>
     </section>
+    <div class="plan-bar" id="planBar" hidden>
+      <span class="plan-bar-text">Drag the plan onto its plot.</span>
+      <span class="plan-bar-btns">
+        <button type="button" class="btn quiet" data-lay="q-" title="Turn the plan a quarter turn">&#x27F2; 90&deg;</button>
+        <button type="button" class="btn quiet" data-lay="f-" title="Turn the plan 5 degrees">&#x27F2; 5&deg;</button>
+        <button type="button" class="btn quiet" data-lay="r-" title="Turn the plan half a degree">&#x27F2; 0.5&deg;</button>
+        <button type="button" class="btn quiet" data-lay="r+" title="Turn the plan half a degree the other way">&#x27F3; 0.5&deg;</button>
+        <button type="button" class="btn quiet" data-lay="f+" title="Turn the plan 5 degrees the other way">&#x27F3; 5&deg;</button>
+        <button type="button" class="btn quiet" data-lay="q+" title="Turn the plan a quarter turn the other way">&#x27F3; 90&deg;</button>
+        <button type="button" class="btn" id="btnPlanSet">Set plan on plot</button>
+      </span>
+    </div>
+    <div class="me-bar" id="meBar" hidden>
+      <span id="meBarText">Me</span>
+      <span class="me-bar-row" id="meTypeRow" hidden><input type="number" id="meType" step="0.001" min="0" inputmode="decimal" placeholder="metres"><button type="button" class="btn quiet" id="meTypeUse">Use</button></span>
+      <span class="me-bar-row"><button type="button" class="btn quiet" id="meWhere" title="Two laser shots to two corners you can see put Me where you are">Where am I?</button><button type="button" class="btn quiet" id="meBarClear">Clear me</button></span>
+    </div>
     <div class="banner" id="banner" hidden>
       <span><strong>Not to scale yet.</strong><span class="long"> Measure a dimension you know and type its length.</span></span>
       <button type="button" class="btn" id="bannerMeasure">Measure</button>
@@ -628,11 +672,11 @@ button, input, select { font: inherit; color: inherit; }
 
   <aside class="panel" id="panel" aria-label="Scale check">
     <button type="button" class="panel-toggle" id="panelToggle" aria-expanded="true" aria-controls="panelBody">Scale check</button>
+    <div class="menu-switch" role="tablist" aria-label="Menu">
+      <button type="button" role="tab" id="tabPlotView" aria-selected="true" class="on">Boundary</button>
+      <button type="button" role="tab" id="tabPlotFetch" aria-selected="false">Plot</button>
+    </div>
     <div class="panel-body" id="panelBody">
-      <div class="menu-switch" role="tablist" aria-label="Menu">
-        <button type="button" role="tab" id="tabPlotView" aria-selected="true" class="on">Boundary</button>
-        <button type="button" role="tab" id="tabPlotFetch" aria-selected="false">Plot</button>
-      </div>
       <button type="button" class="sec-head" id="scaleHead" aria-expanded="true" aria-controls="scaleBody"><span class="sec-name">Scale</span><span class="sec-sum" id="scaleSum"></span></button>
       <div class="sec-body" id="scaleBody">
       <h1>Scale check</h1>
@@ -657,6 +701,10 @@ button, input, select { font: inherit; color: inherit; }
       <section class="scan" id="scanBox" aria-labelledby="scanHead">
         <h2 id="scanHead"><button type="button" class="sec-head" id="scanFold" aria-expanded="true" aria-controls="scanBody"><span class="sec-name">Scan</span><span class="sec-sum" id="scanSum"></span></button></h2>
         <div class="sec-body" id="scanBody">
+        <div class="sec-tools" id="scanTools">
+          <button type="button" class="btn quiet tool-btn" data-tool="origin" aria-pressed="false" title="Scan start (S): click the building corner where the scan began">Scan start</button>
+          <button type="button" class="btn quiet tool-btn" data-tool="align" aria-pressed="false" title="Align scan (A)" disabled>Align scan</button>
+        </div>
         <p class="status" id="scanStatus"></p>
         <label class="opt-fast"><input type="checkbox" id="optFast"> Boundary only: load faster, no 3D model</label>
         <ul class="scan-list" id="scanList" hidden></ul>
@@ -735,40 +783,20 @@ button, input, select { font: inherit; color: inherit; }
           <button type="button" class="btn quiet" id="btnExportSvg" disabled hidden>Export SVG</button>
           <button type="button" class="btn quiet" id="btnPlanHouse">Find the house on the plan</button>
           <button type="button" class="btn quiet" id="btnFloors" disabled title="Lay the other floors on this one and show what they cover beyond it">Stack the floors</button>
-          <button type="button" class="btn quiet" id="btnMe" title="Tap where you stand: the distance to every corner and wall shows, to check with a laser">Place me</button>
           <button type="button" class="btn quiet" id="btnMeClear" hidden>Clear me</button>
           <button type="button" class="btn quiet" id="btnPlanPic" hidden>Show as a building</button>
           <button type="button" class="btn quiet" id="btnSuggest">Suggest boundary</button>
           <button type="button" class="btn quiet" id="btnSuggestHouse" title="Each side on the wall or fence nearest the house's own side, as for a terrace">Suggest boundary in line with the house</button>
-          <button type="button" class="btn" id="btnPlotSheet">Confirm plot, go to Plot</button>
         </div>
         <label id="guidesRow" hidden><input type="checkbox" id="optGuides"> Show the wall and fence lines from the scan (Trace snaps to them)</label>
       </section>
-      <section class="traces" id="mapBox" aria-labelledby="mapHead">
-        <h2 id="mapHead">OS map</h2>
-        <p class="note" id="mapStatus">Only if you want it: the Ordnance Survey map as a faint guide under your plot. It is never on the export.</p>
-        <label class="field">Address or grid reference
-          <input type="text" id="mapLoc" spellcheck="false" placeholder="39 Marston Road, Sheffield S10 1HG">
-        </label>
-        <label class="field">OS key (kept on this PC)
-          <input type="password" id="mapKey" autocomplete="off" spellcheck="false">
-        </label>
-        <label><input type="checkbox" id="mapPlaces" checked> Look the address up with OS Places</label>
-        <label class="field">Fetch distance round the house: <span id="mapHalfVal">20 m</span>
-          <input type="range" id="mapHalf" min="5" max="100" step="1" value="20">
-        </label>
-        <label id="mapShowRow" hidden><input type="checkbox" id="mapShow" checked> Show the OS map here too, faint (never on the export)</label>
-        <div class="scan-acts">
-          <button type="button" class="btn quiet" id="btnMapFetch">Fetch the OS map</button>
-          <button type="button" class="btn quiet" id="btnMapPin" disabled>Pin the plan</button>
-        </div>
-      </section>
       <section class="traces" id="freeBox" aria-labelledby="freeHead">
-        <h2 id="freeHead">Free maps</h2>
+        <h2 id="freeHead">Maps</h2>
         <p class="note" id="freeStatus">Land Registry INSPIRE titles and EA LiDAR for this address, from a map pack made for it. Faint under your plot, never on the export.</p>
         <div class="scan-acts">
           <button type="button" class="btn quiet" id="btnPackLoad">Load map pack</button>
           <button type="button" class="btn quiet" id="btnPackPlace" disabled>Place house on the maps</button>
+          <button type="button" class="btn quiet" id="btnPlanLay" hidden title="Drag the plan onto its plot on the map, turn it, then Set plan on plot">Lay the plan on the map</button>
         </div>
         <!-- 05v: Land Registry titles for Sheffield, in the program -->
         <div class="field" id="inspRow">Land Registry titles (INSPIRE, Sheffield)
@@ -801,7 +829,7 @@ button, input, select { font: inherit; color: inherit; }
           <div class="lz-row" id="lzSketchRow"><button type="button" class="btn quiet" id="btnLzSketch">Sketch corners</button><button type="button" class="btn quiet" id="btnLzSketchClear">Clear sketch</button></div>
           <div class="lz-step" id="lzStep">Place the house first.</div>
           <div class="lz-read" id="lzRead"></div>
-          <div class="lz-row"><button type="button" class="btn" id="btnLzAccept" disabled>Accept</button><button type="button" class="btn quiet" id="btnLzRetake" disabled>Retake</button><button type="button" class="btn quiet" id="btnLzSkip">Skip</button><button type="button" class="btn quiet" id="btnLzBlock" disabled title="Something in the way at the house corner: measure this shot from somewhere else">Blocked? Measure from elsewhere</button></div>
+          <div class="lz-row"><button type="button" class="btn" id="btnLzAccept" disabled>Accept</button><button type="button" class="btn quiet" id="btnLzRetake" disabled>Retake</button><button type="button" class="btn quiet" id="btnLzSkip">Skip</button><button type="button" class="btn quiet" id="btnLzRev" disabled aria-pressed="false" title="Stand at the red dot on the boundary and aim back at the house corner: the same distance">Stand at the boundary end</button><button type="button" class="btn quiet" id="btnLzBlock" disabled title="Something in the way at the house corner: measure this shot from somewhere else">Blocked? Measure from elsewhere</button></div>
           <div class="lz-row"><input type="number" id="lzType" step="0.001" min="0" inputmode="decimal" placeholder="metres"><button type="button" class="btn quiet" id="btnLzType">Use typed reading</button></div>
           <div class="lz-row"><select id="lzHold"><option value="touch">Laser touching the corner</option><option value="chest">Laser held at my chest</option></select><input type="number" id="lzOff" step="1" min="0" max="100" inputmode="numeric" title="How far the laser's back is behind the corner, in cm">cm<button type="button" class="btn quiet" id="btnLzCal">Calibrate</button></div>
           <div class="lz-list" id="lzList"></div>
@@ -826,6 +854,25 @@ button, input, select { font: inherit; color: inherit; }
           <button type="button" class="btn quiet" data-nudge="y+" title="Move the plan 0.1 m up">&uarr;</button>
           <button type="button" class="btn quiet" data-nudge="y-" title="Move the plan 0.1 m down">&darr;</button>
         </div>
+        <details class="adv" id="mapBox">
+        <summary id="mapHead">Advanced: OS map</summary>
+        <p class="note" id="mapStatus">Only if you want it: the Ordnance Survey map as a faint guide under your plot. It is never on the export.</p>
+        <label class="field">Address or grid reference
+          <input type="text" id="mapLoc" spellcheck="false" placeholder="39 Marston Road, Sheffield S10 1HG">
+        </label>
+        <label class="field">OS key (kept on this PC)
+          <input type="password" id="mapKey" autocomplete="off" spellcheck="false">
+        </label>
+        <label><input type="checkbox" id="mapPlaces" checked> Look the address up with OS Places</label>
+        <label class="field">Fetch distance round the house: <span id="mapHalfVal">20 m</span>
+          <input type="range" id="mapHalf" min="5" max="100" step="1" value="20">
+        </label>
+        <label id="mapShowRow" hidden><input type="checkbox" id="mapShow" checked> Show the OS map here too, faint (never on the export)</label>
+        <div class="scan-acts">
+          <button type="button" class="btn quiet" id="btnMapFetch">Fetch the OS map</button>
+          <button type="button" class="btn quiet" id="btnMapPin" disabled>Pin the plan</button>
+        </div>
+        </details>
         <input type="file" id="packFile" accept=".json,application/json,.zip,application/zip,application/x-zip-compressed" hidden>
       </section>
       <div class="panel-foot">
@@ -4172,6 +4219,33 @@ const Core = (() => {
       const W3 = w + 2 * Q;
       const H3 = h + 2 * Q;
       const n3 = W3 * H3;
+      // 16c: A SHORT PIECE OF WALL-THICK INK OUT OF LINE WITH EVERY WALL is not a wall: an icon in the floor plan
+      // software's toolbar under the plan (George's PlanUp screenshot: SW1 and ?), which the join reached
+      const thickF = thick.slice();
+      {
+        const lab = new Int32Array(n);
+        const comps = [];
+        for (let i0 = 0; i0 < n; i0++) {
+          if (!thick[i0] || lab[i0]) continue;
+          const id = comps.length + 1; const st = [i0]; lab[i0] = id; const pix = [];
+          let x0 = w; let x1 = -1; let y0 = h; let y1 = -1;
+          while (st.length) {
+            const i = st.pop(); pix.push(i); const x = i % w; const y = (i - x) / w;
+            if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+            for (const j of [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, i >= w ? i - w : -1, i < n - w ? i + w : -1]) if (j >= 0 && thick[j] && !lab[j]) { lab[j] = id; st.push(j); }
+          }
+          comps.push({ pix, x0, x1, y0, y1, long: Math.max(x1 - x0, y1 - y0) >= 8 * half });
+        }
+        const R = Math.round(12 * half);
+        const longAt = (x, y) => { const id = lab[y * w + x]; return id > 0 && comps[id - 1].long; };
+        for (const c of comps) {
+          if (c.long) continue;
+          let inLine = false;
+          for (let y = c.y0; y <= c.y1 && !inLine; y++) for (let x = Math.max(0, c.x0 - R); x <= Math.min(w - 1, c.x1 + R) && !inLine; x++) if (longAt(x, y)) inLine = true;
+          for (let x = c.x0; x <= c.x1 && !inLine; x++) for (let y = Math.max(0, c.y0 - R); y <= Math.min(h - 1, c.y1 + R) && !inLine; y++) if (longAt(x, y)) inLine = true;
+          if (!inLine) for (const i of c.pix) thickF[i] = 0;
+        }
+      }
       // only lines that belong to the drawing: dark shapes at least about 0.8 m across (the walls with the windows and
       // doors drawn onto them, long lines); a letter of the titles is a small shape of its own and is left out
       const big = new Uint8Array(n);
@@ -4229,10 +4303,62 @@ const Core = (() => {
         }
         return dst;
       };
+      // 16c: AN OPENING WIDER THAN THE JOIN in a wall line (a bay's, its curve drawn thin and faint) let the outside
+      // in, and the room behind it was lost from the floor (FRISIA's lounge). Closed straight across when ink runs on
+      // either side of it along its line and the looks in from it meet a line within about 15 m one way and not the other
+      const bridgeSegs = [];
+      const bridgeOf = (bar) => {
+        const out = new Uint8Array(n);
+        const minRun = Math.max(3, Math.round(1.5 * half));
+        const maxGap = Math.round(32 * half);
+        const reach = Math.round(120 * half);
+        const hits = (B, x, y, dx, dy) => {
+          for (let k = 1; k <= reach; k++) { const xx = x + dx * k; const yy = y + dy * k; if (xx < 0 || yy < 0 || xx >= w || yy >= h) return 0; if (B[yy * w + xx]) return k; }
+          return 0;
+        };
+        for (const rows of [true, false]) {
+          const L = rows ? w : h;
+          const M = rows ? h : w;
+          for (let a = 0; a < M; a++) {
+            const at = (t) => bar[rows ? a * w + t : t * w + a];
+            let t = 0; let prevEnd = -1; let prevLen = 0;
+            while (t < L) {
+              if (!at(t)) { t++; continue; }
+              let e = t; while (e + 1 < L && at(e + 1)) e++;
+              const len = e - t + 1;
+              const gap = t - prevEnd - 1;
+              if (prevEnd >= 0 && prevLen >= minRun && len >= minRun && gap > 2 * r && gap <= maxGap) {
+                // closed in on one side (3 looks of 5 meet a line: some go out through doors), open on the other
+                // (no more than one meets a wall: the thin curve of a bay beyond it does not count)
+                // (both ways can pass when the bay's curve is a drawn line: the open side is then the shallower one)
+                const looks = (B, sgn) => [0.1, 0.3, 0.5, 0.7, 0.9].map((f) => { const s = Math.round(prevEnd + 1 + f * (gap - 1)); return rows ? hits(B, s, a, 0, sgn) : hits(B, a, s, sgn, 0); }).filter((k) => k > 0);
+                const lb = { 1: looks(bar, 1), '-1': looks(bar, -1) };
+                const lt = { 1: looks(thickF, 1).length, '-1': looks(thickF, -1).length };
+                const ok = [1, -1].filter((o) => lb[-o].length >= 3 && lt[o] <= 1);
+                const far = (o) => (lb[o].length ? lb[o].reduce((x, y) => x + y, 0) / lb[o].length : Infinity);
+                let open = 0;
+                if (ok.length === 1) open = ok[0];
+                else if (ok.length === 2) open = lt[1] !== lt[-1] ? (lt[1] < lt[-1] ? 1 : -1) : far(1) < far(-1) ? 1 : -1;
+                if (open) {
+                  for (let s = prevEnd + 1; s < t; s++) out[rows ? a * w + s : s * w + a] = 1;
+                  bridgeSegs.push({ rows, a, s0: prevEnd + 1, s1: t - 1, open });
+                }
+              }
+              prevEnd = e; prevLen = len; t = e + 1;
+            }
+          }
+        }
+        return out;
+      };
+      const barAll = new Uint8Array(n);
+      for (let i = 0; i < n; i++) barAll[i] = thickF[i] || big[i] ? 1 : 0;
+      // (the drawing's lines' footprint only: the walls' own, preferred where it holds, stays as it was, so a bay or
+      // porch drawn in thin lines stays in the floor)
+      const brA = bridgeOf(barAll);
       // the footprint from a set of barriers: joined, filled where the outside cannot reach, shrunk back
       const footOf = (withLines) => {
         let m = new Uint8Array(n3);
-        for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (thick[y * w + x] || (withLines && big[y * w + x])) m[(y + Q) * W3 + x + Q] = 1;
+        for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const i = y * w + x; if (thickF[i] || (withLines && (big[i] || brA[i]))) m[(y + Q) * W3 + x + Q] = 1; }
         m = pass(pass(m, true, true), false, true);
         const outside = new Uint8Array(n3);
         const st2 = [];
@@ -4285,7 +4411,7 @@ const Core = (() => {
       // drawing line in it: the gutter between two floors, crossed only by the join and the title's thin strokes. Each
       // part keeps up to its own last line, so its outline is its walls' face, as before.
       {
-        const inkAt = (i) => thick[i] || big[i];
+        const inkAt = (i) => thickF[i] || big[i];
         const minGap = Math.max(4, Math.round(half));
         for (let pass2 = 0; pass2 < 6; pass2++) {
           let split = false;
@@ -4320,10 +4446,50 @@ const Core = (() => {
           if (!split) break;
         }
       }
-      outlines = [];
+      // 16c: THE FLOOR'S CORE, for the walls found from it: beyond a closed opening, a shallow curved piece (1.3 m or
+      // less: a curved bay drawn in thin lines) taken off, so the side runs straight across and the bay is put
+      // back on it as drawn (findBays, curvedBays). Deeper (a conservatory in thin lines) it stays. The floor itself
+      // (its box, its outline in the list, what Delete rubs out) keeps the bay
+      const footCut = foot.slice();
+      {
+        const brAny = (i) => brA[i];
+        const maxD = Math.round(11 * half);
+        const done = new Set();
+        for (const g of bridgeSegs) {
+          const key = `${g.rows}|${g.s0}|${g.s1}|${g.open}`;
+          if (done.has(key)) continue;
+          const idx = (s, b) => (g.rows ? b * w + s : s * w + b);
+          const M = g.rows ? h : w;
+          const runs = [];
+          let deep = false;
+          for (let s = g.s0; s <= g.s1 && !deep; s++) {
+            let b = g.a;
+            while (b >= 0 && b < M && brAny(idx(s, b))) b += g.open;
+            const b0 = b;
+            while (b >= 0 && b < M && footCut[idx(s, b)] && !thickF[idx(s, b)]) { b += g.open; if (Math.abs(b - b0) > maxD) { deep = true; break; } }
+            if (b >= 0 && b < M && thickF[idx(s, b)]) deep = true;   // closed off by a wall: a room (a cupboard), not a bay
+            runs.push([s, b0, b]);
+          }
+          if (deep) continue;
+          // a piece only a wall's own edge deep (the band of wall beyond a window's sill line) is not a bay: left
+          // the drawn line beyond the opening, column by column: how far out it is (none: the piece's own depth)
+          const dep = runs.map(([s2, b0, b1]) => { for (let b = b0; b !== b1; b += g.open) if (dark[idx(s2, b)]) return Math.abs(b - b0); return Math.abs(b1 - b0); });
+          const top = Math.max(0, ...dep);
+          if (top < 3 * half) continue;
+          // only a CURVED bay (an arch: shallow at both ends, about three quarters of its depth a quarter of the way in):
+          // a square or splayed one is kept in the floor, and found there as before (findBays)
+          const at = (f) => dep[Math.min(dep.length - 1, Math.round(f * (dep.length - 1)))];
+          const arch = at(0.03) < 0.4 * top && at(0.97) < 0.4 * top && at(0.25) > 0.45 * top && at(0.25) < 0.93 * top && at(0.75) > 0.45 * top && at(0.75) < 0.93 * top;
+          if (!arch) continue;
+          done.add(key);
+          for (const [s2, b0, b1] of runs) for (let b = b0; b !== b1; b += g.open) footCut[idx(s2, b)] = 0;
+        }
+      }
+      const traceAll = (F) => {
+      const res = [];
       const seen = new Uint8Array(n);
       for (let i0 = 0; i0 < n; i0++) {
-        if (!foot[i0] || seen[i0]) continue;
+        if (!F[i0] || seen[i0]) continue;
         let size = 0;
         stack.push(i0);
         seen[i0] = 1;
@@ -4332,15 +4498,25 @@ const Core = (() => {
           size++;
           const x = i % w;
           for (const j of [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, i >= w ? i - w : -1, i < n - w ? i + w : -1]) {
-            if (j >= 0 && foot[j] && !seen[j]) { seen[j] = 1; stack.push(j); }
+            if (j >= 0 && F[j] && !seen[j]) { seen[j] = 1; stack.push(j); }
           }
         }
         if (size < minArea) continue;
-        const ring = traceOuter(foot, w, h, i0 % w, (i0 - (i0 % w)) / w);
+        const ring = traceOuter(F, w, h, i0 % w, (i0 - (i0 % w)) / w);
         // steps shallower than about a third of a wall's thickness (a sill or a window frame's edge, 3 to 4 cm) are not
         // corners of the house; a bay, a porch or a chimney breast steps out far more and is kept
         const simple = simplifyRing(ring, Math.max(1.5, half * 0.35));
-        if (simple.length >= 3) outlines.push({ pts: simple.map(([x, y]) => ({ u: x + 0.5, v: y + 0.5 })), area: size });
+        if (simple.length >= 3) res.push({ pts: simple.map(([x, y]) => ({ u: x + 0.5, v: y + 0.5 })), area: size });
+      }
+      return res;
+      };
+      outlines = traceAll(foot);
+      // each floor's core: the cut outline lying in it
+      const cores = traceAll(footCut);
+      for (const o of outlines) {
+        const poly = o.pts.map((q) => ({ x: q.u, y: q.v }));
+        const c = cores.find((k) => { const cx = k.pts.reduce((a2, q) => a2 + q.u, 0) / k.pts.length; const cy = k.pts.reduce((a2, q) => a2 + q.v, 0) / k.pts.length; return insidePolygon(cx, cy, poly); });
+        if (c && c.area < o.area) o.core = c.pts;
       }
     }
     return { lum: out, show, removed, wall: 2 * half, keptFrac: 1 - removed / nd, floors, outlines };
@@ -4878,7 +5054,7 @@ const EMBEDDED_PLAN = null;
 <script id="ui">
 (() => {
   'use strict';
-  const BUILD = '2026-10-16b';
+  const BUILD = '2026-10-16f';
   const $ = (id) => document.getElementById(id);
   const mapEl = $('map');
   // 05u: Set, inside a lifted floor once it is let go
@@ -5088,7 +5264,7 @@ const EMBEDDED_PLAN = null;
       const sub = (arr) => { const out = new Uint8Array(cutTo.w * cutTo.h); for (let y = 0; y < cutTo.h; y++) out.set(arr.subarray((y + cutTo.y) * W0 + cutTo.x, (y + cutTo.y) * W0 + cutTo.x + cutTo.w), y * cutTo.w); return out; };
       const inCut = (o) => o.pts.every((p) => p.u >= cutTo.x && p.v >= cutTo.y && p.u <= cutTo.x + cutTo.w && p.v <= cutTo.y + cutTo.h);
       lum = sub(lum);
-      clean = { ...clean, lum: sub(clean.lum), show: clean.show ? sub(clean.show) : null, outlines: (clean.outlines || []).filter(inCut).map((o) => ({ ...o, pts: o.pts.map((p) => ({ u: p.u - cutTo.x, v: p.v - cutTo.y })) })) };
+      clean = { ...clean, lum: sub(clean.lum), show: clean.show ? sub(clean.show) : null, outlines: (clean.outlines || []).filter(inCut).map((o) => ({ ...o, pts: o.pts.map((p) => ({ u: p.u - cutTo.x, v: p.v - cutTo.y })), core: o.core ? o.core.map((p) => ({ u: p.u - cutTo.x, v: p.v - cutTo.y })) : undefined })) };
       w = cutTo.w; h = cutTo.h;
     }
     const src = { w, h, lum: clean.lum, lumRaw: lum, lumClean: clean.lum, titlesOff: clean.removed > 0, floors: clean.outlines || [], wallPx: clean.wall || 0, name: name || 'plan', dataUrl: dataUrl || null, ink: null, downscaled: k < 1, cutTo, lumShow: clean.show || null };
@@ -5120,14 +5296,25 @@ const EMBEDDED_PLAN = null;
     // 05g: removed floors rubbed off (their outline and 0.3 m round it, for the walls and labels)
     const gone = src === S.src ? (S.show.floorGone || []) : [];
     if (gone.length && src.floors) {
-      x.save(); x.globalCompositeOperation = 'destination-out'; x.fillStyle = '#000';
+      // 16c: its whole box (0.3 m round), less the floors still in use (and 0.3 m round them): a floor whose outline
+      // was read short left part of a room behind
       const padPx = S.plan && S.plan.s ? 0.3 / S.plan.s : 12;
+      const mk = document.createElement('canvas'); mk.width = src.w; mk.height = src.h;
+      const mx = mk.getContext('2d');
+      mx.fillStyle = '#000';
       for (const k of gone) {
         const o = src.floors[k]; if (!o) continue;
-        const P = Core.offsetPolygon(o.pts.map((q) => ({ x: q.u, y: q.v })), o.pts.map(() => padPx));
-        x.beginPath(); P.forEach((q, i) => (i ? x.lineTo(q.x, q.y) : x.moveTo(q.x, q.y))); x.closePath(); x.fill();
+        const us = o.pts.map((q) => q.u); const vs = o.pts.map((q) => q.v);
+        const u0 = Math.min(...us) - padPx; const v0 = Math.min(...vs) - padPx;
+        mx.fillRect(u0, v0, Math.max(...us) + padPx - u0, Math.max(...vs) + padPx - v0);
       }
-      x.restore();
+      mx.globalCompositeOperation = 'destination-out';
+      src.floors.forEach((o, k) => {
+        if (gone.includes(k)) return;
+        const P = Core.offsetPolygon(o.pts.map((q) => ({ x: q.u, y: q.v })), o.pts.map(() => padPx));
+        mx.beginPath(); P.forEach((q, i) => (i ? mx.lineTo(q.x, q.y) : mx.moveTo(q.x, q.y))); mx.closePath(); mx.fill();
+      });
+      x.save(); x.globalCompositeOperation = 'destination-out'; x.drawImage(mk, 0, 0); x.restore();
     }
     src.ink = { colour, canvas: c };
     return c;
@@ -5527,7 +5714,7 @@ const EMBEDDED_PLAN = null;
   function tagText(L, r) {
     if (!S.calibrated) return { main: L.typed > 0 ? tapeLabel(L) : 'Length?', sub: null };
     const main = Core.fmtM(r.measured);
-    if (isRef(L)) return { main, sub: 'Scale set here' };
+    if (isRef(L)) return { main, sub: null };   // 16d: just the line and its measurement
     if (L.typed > 0) return { main, sub: `Tape ${tapeLabel(L)}, ${Core.fmtDiff(r.diff)}` };
     return { main, sub: null };
   }
@@ -5827,6 +6014,10 @@ const EMBEDDED_PLAN = null;
   function recomputeScale() {
     const was = S.calibrated;
     recomputeScale0();
+    if (!was && S.calibrated && autoFold()) T.railSlim = true;   // 16d: the scale set: the left menu folds
+    if (typeof syncRail === 'function') syncRail();
+    // 16c: the scale set: Measure lets go (back to Move)
+    if (!was && S.calibrated && S.tool === 'measure') setTimeout(() => { if (S.tool === 'measure' && !T.pendingA) selectTool('move'); }, 0);
     // 05u: the scale just set: the walls found at once (George), if the plan has floors and no house yet
     if (!was && S.calibrated && foldAll() && S.src && S.src.floors && floorsKept().length && !S.traces.some((t) => outerOf(t))) {
       setTimeout(() => { if (S.calibrated && !S.traces.some((t) => outerOf(t))) { const t = houseFromPlan(); if (t) { refresh(); save(); toast('Scale set: the walls are found. Click a wall\'s label to change its thickness.'); } } }, 0);
@@ -5963,7 +6154,7 @@ const EMBEDDED_PLAN = null;
     T.pendingA = null; T.cand = null; T.cropDrag = null; T.loupeAt = null; T.traceCand = null;
     closeTape();
     mapEl.dataset.tool = t;
-    document.querySelectorAll('.rail [data-tool]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.tool === t)));
+    document.querySelectorAll('button[data-tool]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.tool === t)));
     refresh();
     if (t === 'trace') $('traceBox').scrollIntoView({ block: 'nearest' });
   }
@@ -6615,6 +6806,13 @@ const EMBEDDED_PLAN = null;
   // as one area so a garden drawn along the house wall is not counted twice
   function measuredAreas() {
     syncHouses();
+    const key = JSON.stringify([S.wallDefault, S.traces.filter((t) => (t.kind === 'plot' || t.kind === 'house') && t.closed && !t.open).map((t) => [t.id, t.kind, t.name, t.pts, t.walls])]);
+    if (T.areasMemo && T.areasMemo.key === key) return T.areasMemo.v;
+    const v = measuredAreas0();
+    T.areasMemo = { key, v };
+    return v;
+  }
+  function measuredAreas0() {
     const plots = S.traces.filter((t) => t.kind === 'plot' && t.closed && !t.open && t.pts.length >= 3);
     const houses = S.traces.filter((t) => t.kind === 'house' && t.closed && !t.open && t.pts.length >= 3);
     const name = (t) => t.name || (t.kind === 'house' ? 'House' : `Garden ${t.id}`);
@@ -7149,11 +7347,126 @@ const EMBEDDED_PLAN = null;
     if (me) for (const s of (S.show.meSides || [])) { const g2 = meSideGeom(s); if (g2) res.push({ x: g2.x, y: g2.y, what: 'perp', id: s.id, i: s.i, d: g2.d }); }
     return res;
   }
+  // 16f: can Me see q (the house walls in the way)? The target itself may sit on a wall
+  function meSees(q) {
+    const me = S.show.me; if (!me) return false;
+    // the house outlines, worked out once a frame
+    if (!T.meHs || T.meHs.at !== T.frameNo) T.meHs = { at: T.frameNo, H: S.traces.filter((t) => t.kind === 'house').map((t) => outerOf(t)).filter(Boolean) };
+    const L = Math.hypot(q.x - me.x, q.y - me.y); if (L < 0.07) return true;
+    // stop 6 cm short of the target (it may sit on a wall): blocked if that crosses a house wall or runs inside it
+    const e = { x: q.x - ((q.x - me.x) / L) * 0.06, y: q.y - ((q.y - me.y) / L) * 0.06 };
+    const cr = (a, b, c, d) => { const d1 = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x); const d2 = (b.x - a.x) * (d.y - a.y) - (b.y - a.y) * (d.x - a.x); const d3 = (d.x - c.x) * (a.y - c.y) - (d.y - c.y) * (a.x - c.x); const d4 = (d.x - c.x) * (b.y - c.y) - (d.y - c.y) * (b.x - c.x); return d1 * d2 < 0 && d3 * d4 < 0; };
+    for (const O of T.meHs.H) {
+      for (let i = 0; i < O.length; i++) if (cr(me, e, O[i], O[(i + 1) % O.length])) return false;
+      if (Core.insidePolygon((me.x + e.x) / 2, (me.y + e.y) / 2, O)) return false;
+    }
+    return true;
+  }
+  // 16f: the angle at each boundary corner, and Me's square-on distance to each side it can see
+  function meCornerAngles() {
+    const out = [];
+    for (const t of S.traces) {
+      if (t.open || t.kind === 'house' || outerOf(t) || t.pts.length < 3) continue;
+      const n = t.pts.length;
+      for (let i = 0; i < n; i++) {
+        if (!t.closed && (i === 0 || i === n - 1)) continue;
+        const p = t.pts[i]; const a = t.pts[(i - 1 + n) % n]; const b = t.pts[(i + 1) % n];
+        const u = Math.atan2(a.y - p.y, a.x - p.x); const v = Math.atan2(b.y - p.y, b.x - p.x);
+        let d = Math.abs(u - v) * 180 / Math.PI; if (d > 180) d = 360 - d;
+        out.push({ x: p.x, y: p.y, deg: d });
+      }
+    }
+    return out;
+  }
+  function meSquareOn() {
+    const me = S.show.me; if (!me) return [];
+    const out = [];
+    for (const t of S.traces) {
+      if (t.open || t.kind === 'house' || outerOf(t) || t.pts.length < 2) continue;
+      const nS = t.closed ? t.pts.length : t.pts.length - 1;
+      for (let i = 0; i < nS; i++) {
+        const a = t.pts[i]; const b = t.pts[(i + 1) % t.pts.length]; const vx = b.x - a.x; const vy = b.y - a.y; const L2 = vx * vx + vy * vy;
+        if (L2 < 0.25) continue;
+        const u = ((me.x - a.x) * vx + (me.y - a.y) * vy) / L2; if (u <= 0.02 || u >= 0.98) continue;   // square-on only where the foot lies on the side
+        const f = { x: a.x + vx * u, y: a.y + vy * u }; const d = Math.hypot(f.x - me.x, f.y - me.y);
+        if (d < 0.05 || !meSees(f)) continue;
+        out.push({ x: f.x, y: f.y, d, id: t.id, i });
+      }
+    }
+    return out;
+  }
+  // 16f: WHERE AM I: a rough tap, two corners picked (house or boundary, seen from there, crossing well), two readings
+  function whereCorners() {
+    const out = [];
+    const O = titleHouse(); if (O) O.forEach((p, i) => out.push({ x: p.x, y: p.y, name: `house corner ${lzLetter(i)}` }));
+    let k = 0;
+    for (const t of S.traces) { if (t.open || t.kind === 'house' || outerOf(t)) continue; for (const p of t.pts) { if (out.some((q) => Math.hypot(q.x - p.x, q.y - p.y) < 0.05)) continue; k++; out.push({ x: p.x, y: p.y, name: `boundary corner ${k}` }); } }
+    return out;
+  }
+  function whereStart() {
+    T.where = { stage: 'me' }; T.lzBlock = null; T.lzPending = null;
+    syncWhere(); requestRender();
+    toast('Where am I: tap the plan roughly where you are standing.');
+  }
+  function whereCancel() { T.where = null; syncWhere(); requestRender(); }
+  function whereMe(w) {
+    const C = whereCorners(); const me = { x: w.x, y: w.y };
+    const seen = C.filter((q) => { const Hs = S.traces.filter((t) => t.kind === 'house').map((t) => outerOf(t)).filter(Boolean); return Hs.every((O) => lzSees(O, q, me)) && Math.hypot(q.x - me.x, q.y - me.y) < 60 && Math.hypot(q.x - me.x, q.y - me.y) > 0.3; });
+    let best = null;
+    for (let u = 0; u < seen.length; u++) for (let v = u + 1; v < seen.length; v++) {
+      const P = seen[u]; const Q = seen[v]; const ax = P.x - me.x; const ay = P.y - me.y; const bx = Q.x - me.x; const by = Q.y - me.y;
+      const sin = Math.abs(ax * by - ay * bx) / (Math.hypot(ax, ay) * Math.hypot(bx, by) || 1);
+      const sc = sin / (1 + (Math.hypot(ax, ay) + Math.hypot(bx, by)) / 40);
+      if (!best || sc > best.sc) best = { sc, a: P, b: Q };
+    }
+    if (!best || best.sc < 0.15) { toast('From there no two corners can be seen well enough. Tap somewhere else.'); return false; }
+    T.where = { stage: 'a', me, a: best.a, b: best.b, ra: null, rb: null };
+    syncWhere(); requestRender();
+    toast(`Aim at ${best.a.name} and measure (about ${lzF(Math.hypot(best.a.x - me.x, best.a.y - me.y))}).`);
+    return true;
+  }
+  function whereReading(v) {
+    const W = T.where; if (!W || (W.stage !== 'a' && W.stage !== 'b')) return false;
+    if (W.stage === 'a') { W.ra = v; W.stage = 'b'; syncWhere(); requestRender(); toast(`${lzF(v)} to ${W.a.name}. Now aim at ${W.b.name} (about ${lzF(Math.hypot(W.b.x - W.me.x, W.b.y - W.me.y))}).`); return true; }
+    W.rb = v;
+    const M = lzSolve(W.a, W.ra, W.b, W.rb, W.me);
+    if (!M) { W.stage = 'a'; W.ra = null; W.rb = null; syncWhere(); toast('Those two distances do not meet: measure both again.'); return true; }
+    pushUndo();
+    S.show.me = { x: +M.x.toFixed(3), y: +M.y.toFixed(3) }; T.meMode = true; T.where = null;
+    syncMeBtn(); syncWhere(); refresh(); save(); requestRender();
+    toast(`You are here: ${lzF(W.ra)} from ${W.a.name}, ${lzF(W.rb)} from ${W.b.name} (${lzF(Math.hypot(M.x - W.me.x, M.y - W.me.y))} from your tap).`);
+    return true;
+  }
+  function syncWhere() {
+    const bar = $('meBar'); if (!bar) return;
+    bar.hidden = !(T.meMode || T.placeMe || T.where);
+    const W = T.where;
+    $('meBarText').textContent = !W ? 'Me: drag the dot, tap a side for the distance to it.'
+      : W.stage === 'me' ? 'Where am I: tap roughly where you are standing.'
+      : W.stage === 'a' ? `Aim at ${W.a.name} and measure (or type it).` : `Now aim at ${W.b.name} and measure (or type it).`;
+    $('meWhere').textContent = W ? 'Cancel' : 'Where am I?';
+    $('meTypeRow').hidden = !(W && (W.stage === 'a' || W.stage === 'b'));
+  }
+  function drawWhere(c, vp) {
+    const W = T.where; if (!W || !W.me) return;
+    const P = w2s(vp, W.me.x, W.me.y);
+    c.save(); c.setLineDash([6, 4]); c.lineWidth = 2;
+    for (const [q, done, cur] of [[W.a, W.ra != null, W.stage === 'a'], [W.b, W.rb != null, W.stage === 'b']]) {
+      const s = w2s(vp, q.x, q.y); c.strokeStyle = done ? '#1f7a3a' : cur ? '#dc2626' : 'rgba(220,38,38,0.45)'; c.beginPath(); c.moveTo(P.x, P.y); c.lineTo(s.x, s.y); c.stroke();
+      c.setLineDash([]); c.fillStyle = c.strokeStyle; c.beginPath(); c.arc(s.x, s.y, 5, 0, 7); c.fill(); c.setLineDash([6, 4]);
+    }
+    c.setLineDash([]); c.fillStyle = 'rgba(124,58,237,0.6)'; c.beginPath(); c.arc(P.x, P.y, 9, 0, 7); c.fill();
+    c.restore();
+    T.whereDrawn = { a: W.a.name, b: W.b.name, stage: W.stage };
+  }
   function drawMe(c, vp) {
+    T.frameNo = (T.frameNo || 0) + 1;
+    drawWhere(c, vp);
     const me = S.show.me;
     if (!me) return;
     const P = w2s(vp, me.x, me.y);
-    const Q = meTargets();
+    const Q = meTargets().filter((q) => q.what === 'perp' || meSees(q));   // 16f: what Me cannot see left off
+    T.meDrawn = { targets: Q.filter((q) => q.what !== 'side' && q.what !== 'perp').length, hidden: meTargets().length - Q.length, square: 0, angles: 0 };
     c.save();
     c.strokeStyle = 'rgba(124,58,237,0.35)'; c.lineWidth = 1;
     for (const q of Q) { if (q.what === 'side' || q.what === 'perp') continue; const s = w2s(vp, q.x, q.y); c.beginPath(); c.moveTo(P.x, P.y); c.lineTo(s.x, s.y); c.stroke(); }
@@ -7172,10 +7485,28 @@ const EMBEDDED_PLAN = null;
     for (const q of Q) {
       if (q.what === 'side' || q.what === 'perp') continue;
       const s = w2s(vp, q.x, q.y); const txt = q.d.toFixed(2); const w = c.measureText(txt).width + 8;
-      c.fillStyle = 'rgba(255,255,255,0.94)'; c.fillRect(s.x - w / 2, s.y - 19, w, 15);
-      c.fillStyle = q.what === 'wall' ? '#1f3f7a' : '#5b21b6'; c.fillText(txt, s.x - w / 2 + 4, s.y - 11.5);
+      const mx = (s.x + P.x) / 2; const my = (s.y + P.y) / 2;   // 16f: in the middle of its line
+      c.fillStyle = 'rgba(255,255,255,0.94)'; c.fillRect(mx - w / 2, my - 7.5, w, 15);
+      c.fillStyle = q.what === 'wall' ? '#1f3f7a' : '#5b21b6'; c.fillText(txt, mx - w / 2 + 4, my);
       c.beginPath(); c.arc(s.x, s.y, 2.5, 0, 7); c.fill();
     }
+    // 16f: the angle at each corner Me can see
+    c.font = '600 10px system-ui, sans-serif';
+    for (const a of meCornerAngles()) {
+      if (!meSees(a)) continue;
+      const s = w2s(vp, a.x, a.y); const txt = `${Math.round(a.deg)}°`; const w = c.measureText(txt).width + 6;
+      c.fillStyle = 'rgba(255,255,255,0.9)'; c.fillRect(s.x + 5, s.y + 4, w, 13); c.fillStyle = '#9a3412'; c.fillText(txt, s.x + 8, s.y + 10.5);
+      T.meDrawn.angles++;
+    }
+    // 16f: square on to every side Me can see
+    c.setLineDash([4, 3]); c.strokeStyle = 'rgba(14,116,144,0.8)'; c.lineWidth = 1.3; c.font = '600 10px system-ui, sans-serif';
+    for (const f of meSquareOn()) {
+      const s = w2s(vp, f.x, f.y); c.beginPath(); c.moveTo(P.x, P.y); c.lineTo(s.x, s.y); c.stroke();
+      const txt = f.d.toFixed(2); const w = c.measureText(txt).width + 6; const mx = (s.x + P.x) / 2; const my = (s.y + P.y) / 2;
+      c.setLineDash([]); c.fillStyle = 'rgba(255,255,255,0.92)'; c.fillRect(mx - w / 2, my - 6.5, w, 13); c.fillStyle = '#0e7490'; c.fillText(txt, mx - w / 2 + 3, my); c.setLineDash([4, 3]);
+      T.meDrawn.square++;
+    }
+    c.setLineDash([]); c.font = '600 11px system-ui, sans-serif';
     c.beginPath(); c.arc(P.x, P.y, 11, 0, 7); c.fillStyle = '#7c3aed'; c.fill(); c.lineWidth = 2; c.strokeStyle = '#ffffff'; c.stroke();
     c.fillStyle = '#ffffff'; c.font = '700 9px system-ui, sans-serif'; c.textAlign = 'center'; c.fillText('me', P.x, P.y + 0.5);
     c.restore();
@@ -9317,6 +9648,13 @@ const EMBEDDED_PLAN = null;
     { const u = S.show.floorUse; if (u != null && S.src.floors[u] && !(S.show.floorGone || []).includes(u)) return S.src.floors[u]; }
     if (!floorsKept().length) return null;
     const inside = (o, p) => p && Core.insidePolygon(p.u, p.v, o.pts.map((q) => ({ x: q.u, y: q.v })));
+    // 16c: the floor titled Ground, wherever the scale was measured: one scale covers every floor on a sheet. The
+    // scan's start still picks the floor it stands in; with no Ground title, the floor the scale was measured on
+    if (!S.scanStart) {
+      const gone = S.show.floorGone || [];
+      const k0 = floorTitles().findIndex((t, k) => t && t.level === 0 && !gone.includes(k));
+      if (k0 >= 0 && S.src.floors[k0]) return S.src.floors[k0];
+    }
     const line = S.lines[0];
     const at = S.scanStart || (line && line.a) || null;
     let floor = at ? floorsKept().find((o) => inside(o, at)) : null;
@@ -9346,6 +9684,13 @@ const EMBEDDED_PLAN = null;
     else if (what === 'gone') { if (!g.includes(k)) g.push(k); if (S.show.floorUse === k) S.show.floorUse = null; }
     else if (what === 'back') { const i = g.indexOf(k); if (i >= 0) g.splice(i, 1); }
     S.show.floorGone = g;
+    // 16c: the walls found on a floor go with it
+    if (what === 'gone' && S.src && S.src.floors && S.src.floors[k]) {
+      const poly = S.src.floors[k].pts.map((q) => ({ x: q.u, y: q.v }));
+      const onIt = (t) => t.floor === k || (t.floor == null && t.fromPlan && t.img && t.img.length && Core.insidePolygon(t.img.reduce((a, q) => a + q.u, 0) / t.img.length, t.img.reduce((a, q) => a + q.v, 0) / t.img.length, poly));
+      for (let i = S.traces.length - 1; i >= 0; i--) if (onIt(S.traces[i])) S.traces.splice(i, 1);
+      if (S.selTrace != null && !S.traces.some((t) => t.id === S.selTrace)) S.selTrace = null;
+    }
     if (S.src) S.src.ink = null;
     refresh(); save(); requestRender();
   }
@@ -9666,6 +10011,7 @@ const EMBEDDED_PLAN = null;
   // A step at a corner (05f): the corner's short run (0.15-1.3 m) stands 0.12-0.45 m proud of the longer side it steps
   // down to (1 m or more, at least 1.2 times the run, in line with it): a conservatory traced on its inner glass line
   // with the door frame at the outer one. The longer side is carried out to the outer line (05g), the corner square.
+  const STEP_M = 0.11;   // 16c: steps in the outer wall this deep or more are kept (was 0.12 m)
   function dropCornerSteps(P0) {
     if (!S.plan || !S.plan.s || !P0 || P0.length < 6) return P0;
     const ppm = 1 / S.plan.s;
@@ -9679,7 +10025,7 @@ const EMBEDDED_PLAN = null;
         const c0 = P[i]; const c1 = P[(i + 1) % n]; const c2 = P[(i + 2) % n]; const c3 = P[(i + 3) % n]; const c4 = P[(i + 4) % n];
         const s0 = unit(c0, c1); const run = unit(c1, c2); const jog = unit(c2, c3); const lng = unit(c3, c4);
         if (run.L < 0.15 * ppm || run.L > 1.3 * ppm) continue;
-        if (jog.L < 0.12 * ppm || jog.L > 0.45 * ppm) continue;
+        if (jog.L < STEP_M * ppm || jog.L > 0.45 * ppm) continue;   // 16c: was 0.12 m, with the steps kept
         if (lng.L < Math.max(1 * ppm, 1.2 * run.L)) continue;
         if (Math.abs(run.u * jog.u + run.v * jog.v) > 0.2 || Math.abs(s0.u * run.u + s0.v * run.v) > 0.2) continue;
         if (run.u * lng.u + run.v * lng.v < 0.95) continue;
@@ -9728,17 +10074,98 @@ const EMBEDDED_PLAN = null;
   // 0.12 m taken off, each side on the wall's outer face
   function planOutline(floor) {
     // squared and stepped (30e), then any door drawn open outside a wall taken off (03a)
-    const tidy0 = Core.tidyOutline(floor.pts, 0.12 / S.plan.s, 12);
+    const tidy0 = Core.tidyOutline(floor.core || floor.pts, STEP_M / S.plan.s, 12);   // 16c: the core (a thin-lined bay taken off, put back below)
     const noDoors = tidy0.length >= 6 ? Core.dropDoorBumps(tidy0, S.src.lumRaw || S.src.lum, S.src.w, S.src.h, 1 / S.plan.s, S.src.wallPx || 0, 1.2) : tidy0;
-    const tidy = noDoors.length < tidy0.length ? Core.tidyOutline(noDoors, 0.12 / S.plan.s, 12) : tidy0;
+    const tidy = noDoors.length < tidy0.length ? Core.tidyOutline(noDoors, STEP_M / S.plan.s, 12) : tidy0;
     // each side on its drawn outer face, then tidied once more: the faces of a wall and of a window in it differ by a
     // few pixels, which left steps under 0.12 m (03c)
     if (tidy.length < 3) return floor.pts;
     const faced = onOuterFace(tidy);
-    const again = Core.tidyOutline(faced, 0.12 / S.plan.s, 12);
-    // a bay drawn in thin lines: round it, square or splayed (05b); a step at a corner taken off (05f)
+    const again = Core.tidyOutline(faced, STEP_M / S.plan.s, 12);
+    // a bay drawn in thin lines: round it, square or splayed (05b), or curved (16c); a step at a corner taken off (05f)
     T.lastBays = [];
-    return dropCornerSteps(findBays(again.length >= 3 ? again : faced));
+    T.lastCurves = [];
+    return curvedBays(dropCornerSteps(findBays(again.length >= 3 ? again : faced)));
+  }
+  // 16c: A CURVED BAY (George's lounge): a thin arc standing out of a wall, from the wall back to the wall. From each
+  // side of 1.5 m or more, looked out from square, every pixel along it: the first line met within 1.3 m. A run of
+  // those that rises smoothly from the wall to 0.25-1.3 m out and comes back down to it is the bay: the side follows it
+  function curvedBays(P0) {
+    if (!S.src || !S.plan || !S.plan.s || !P0 || P0.length < 3) return P0;
+    const lum = S.src.lumRaw || S.src.raw || S.src.lum;
+    const W = S.src.w;
+    const H = S.src.h;
+    const ppm = 1 / S.plan.s;
+    const dk = (u, v) => {
+      const ui = Math.round(u); const vi = Math.round(v);
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const x = ui + dx; const y = vi + dy; if (x >= 0 && y >= 0 && x < W && y < H && lum[y * W + x] < 170) return true; }
+      return false;
+    };
+    let a2 = 0;
+    for (let i = 0; i < P0.length; i++) { const p = P0[i]; const q = P0[(i + 1) % P0.length]; a2 += p.u * q.v - q.u * p.v; }
+    const sign = a2 > 0 ? 1 : -1;
+    const out = [];
+    for (let i = 0; i < P0.length; i++) {
+      const A = P0[i];
+      const B = P0[(i + 1) % P0.length];
+      out.push({ u: A.u, v: A.v });
+      const L = Math.hypot(B.u - A.u, B.v - A.v);
+      if (L < 1.5 * ppm) continue;
+      const t = { u: (B.u - A.u) / L, v: (B.v - A.v) / L };
+      const nn = { u: sign * t.v, v: -sign * t.u };
+      const at = (s, d) => ({ u: A.u + t.u * s + nn.u * d, v: A.v + t.v * s + nn.v * d });
+      const d0 = Math.max(4, Math.round(0.04 * ppm));
+      const dmax = Math.round(1.3 * ppm);
+      const S0 = Math.round(0.05 * ppm);
+      const S1 = Math.floor(L - 0.05 * ppm);
+      const vals = [];
+      for (let s = S0; s <= S1; s++) {
+        let hit = dmax + 1;
+        for (let d = d0; d <= dmax; d++) { const p = at(s, d); if (dk(p.u, p.v)) { hit = d; break; } }
+        vals.push(hit);
+      }
+      // a line drawn out across the bay (a dimension's leader) is a few pixels wide: the median over 0.2 m passes it
+      const k = Math.max(5, Math.round(0.1 * ppm));
+      const med = vals.map((_, j) => { const win = vals.slice(Math.max(0, j - k), j + k + 1).sort((a, b) => a - b); return win[win.length >> 1]; });
+      const jump = Math.max(3, 0.05 * ppm);
+      let best = null;
+      for (let j = 0; j < med.length;) {
+        if (med[j] > dmax) { j++; continue; }
+        let e = j;
+        while (e + 1 < med.length && med[e + 1] <= dmax && Math.abs(med[e + 1] - med[e]) <= jump) e++;
+        const len = e - j + 1;
+        if (len >= 0.8 * ppm) {
+          let top = 0; let atTop = j;
+          for (let q = j; q <= e; q++) if (med[q] > top) { top = med[q]; atTop = q; }
+          const ends = Math.max(med[j], med[e]);
+          const f = (atTop - j) / len;
+          // up then down: the profile in 0.1 m steps turns once
+          const stepQ = Math.max(2, Math.round(0.1 * ppm));
+          let turns = 0; let dir = 0;
+          for (let q = j + stepQ; q <= e; q += stepQ) { const dd = med[q] - med[q - stepQ]; const s2 = Math.abs(dd) < 2 ? 0 : Math.sign(dd); if (s2 && dir && s2 !== dir) turns++; if (s2) dir = s2; }
+          if (top >= 0.25 * ppm && ends <= Math.max(d0 + 6, 0.3 * top) && f > 0.2 && f < 0.8 && turns <= 1 && (!best || len > best.len)) best = { j, e, len, top };
+        }
+        j = e + 1;
+      }
+      if (!best) continue;
+      // inside the curve: open (a room drawn on beyond the wall is not a bay)
+      let ink = 0; let cnt = 0;
+      for (let q = best.j; q <= best.e; q += 2) { const d = med[q] * 0.5; if (d < d0) continue; cnt++; const p = at(q + S0, d); if (dk(p.u, p.v)) ink++; }
+      if (!cnt || ink / cnt > 0.35) continue;
+      const pts = [at(best.j + S0, 0)];
+      const step = Math.max(4, Math.round(0.25 * ppm));
+      for (let q = best.j + step; q < best.e - step / 2; q += step) pts.push(at(q + S0, med[q] + 1));
+      pts.push(at(best.e + S0, 0));
+      out.push(...pts);
+      T.lastCurves.push(pts.map((q) => ({ u: +q.u.toFixed(1), v: +q.v.toFixed(1) })));
+    }
+    return out.length >= 3 ? out : P0;
+  }
+  // 16c: Find walls can be used: no house yet, or the house is one found on a floor other than the one picked now
+  function planHouseFree() {
+    const hs = S.traces.find((t) => outerOf(t));
+    if (!hs) return true;
+    return !!hs.fromPlan && hs.floor !== floorPicked();
   }
   function planHouse() {
     if (!S.calibrated) return null;
@@ -9749,14 +10176,16 @@ const EMBEDDED_PLAN = null;
     const inner = f.faces.map((q) => Core.imgToWorld(S.plan, q.u, q.v));
     const walls = inner.map(() => S.wallDefault);
     const outer = Core.offsetPolygon(inner, walls);
-    return { inner, outer, img: f.faces, outline: floor.pts, drawnWall: f.drawn.map((t) => t * S.plan.s), wall: S.wallDefault };
+    return { inner, outer, img: f.faces, outline: floor.pts, drawnWall: f.drawn.map((t) => t * S.plan.s), wall: S.wallDefault, k: S.src.floors.indexOf(floor0) };
   }
   // Make the house trace from the plan: one undo step; returns it, or null
   function houseFromPlan() {
     const ph = planHouse();
     if (!ph) return null;
     pushUndo();
-    const t = { id: S.nextTraceId++, kind: 'house', name: 'House', pts: ph.inner.map((q) => ({ x: q.x, y: q.y })), closed: true, open: false, fromPlan: true, img: ph.img.map((q) => ({ u: q.u, v: q.v })), walls: ph.inner.map(() => S.wallDefault) };
+    // 16c: a house found on another floor goes: this one takes its place
+    for (let i = S.traces.length - 1; i >= 0; i--) if (S.traces[i].kind === 'house' && S.traces[i].fromPlan) S.traces.splice(i, 1);
+    const t = { id: S.nextTraceId++, kind: 'house', name: 'House', pts: ph.inner.map((q) => ({ x: q.x, y: q.y })), closed: true, open: false, fromPlan: true, floor: ph.k, img: ph.img.map((q) => ({ u: q.u, v: q.v })), walls: ph.inner.map(() => S.wallDefault) };
     S.traces.push(t);
     S.selTrace = t.id;
     if (autoFold()) S.show.lockHouse = true;   // 05d: found walls stay put; Edit walls on its card frees them
@@ -10153,8 +10582,11 @@ const EMBEDDED_PLAN = null;
     }
     // 05u: the lifted floor, dragged onto the stack
     // 05v: a title picked; a distance laid
+    if (e.button === 0 && !T.space && S.src && T.lzMeAt && Math.hypot(pt.x - T.lzMeAt.x, pt.y - T.lzMeAt.y) <= (e.pointerType !== 'mouse' ? 24 : 13)) { gesture = { type: 'lzme', start: pt }; T.lzMeDrag = { x: pt.x, y: pt.y }; requestRender(); return; }   // 16f
+    if (e.button === 0 && !T.space && S.src && T.where && T.where.stage === 'me') { whereMe(s2w(mainVp(), pt.x, pt.y)); return; }   // 16f
     if (e.button === 0 && !T.space && S.src && T.lzBlock && (T.lzBlock.stage === 'me' || (T.lzBlock.stage === 'a' && T.lzBlock.ra == null && !T.lzPending))) { lzBlockPlace(s2w(mainVp(), pt.x, pt.y)); return; }   // 16a
     if (e.button === 0 && !T.space && S.src && T.lzSketching) { const w = s2w(mainVp(), pt.x, pt.y); pushUndo(); lzS().sketch.push({ x: +w.x.toFixed(3), y: +w.y.toFixed(3) }); save(); syncLaser(); requestRender(); return; }   // 15a
+    if (e.button === 0 && !T.space && S.src && T.planLay && S.mapPin && S.tool === 'move' && !T.meMode) { pushUndo(); gesture = { type: 'plandrag', last: pt }; mapEl.classList.add('grabbing'); return; }   // 16e
     if (e.button === 0 && !T.space && S.src && T.inspPick) { if (inspPickAt(pt)) { T.inspPick = false; syncInsp(); } return; }
     if (e.button === 0 && !T.space && S.src && T.dimMode) {
       const q = dimSnap(pt);
@@ -10259,6 +10691,8 @@ const EMBEDDED_PLAN = null;
     if (gesture && gesture.type === 'pinch') { if (pointers.size >= 2) updatePinch(); return; }
     if (gesture && gesture.type === 'dead') return;
     if (gesture && gesture.type === 'me') { setMe(pt); return; }
+    if (gesture && gesture.type === 'lzme') { T.lzMeDrag = { x: pt.x, y: pt.y }; requestRender(); return; }   // 16f
+    if (gesture && gesture.type === 'plandrag') { const a = s2w(mainVp(), gesture.last.x, gesture.last.y); const b = s2w(mainVp(), pt.x, pt.y); movePlanOnMap(b.x - a.x, b.y - a.y); gesture.last = pt; return; }   // 16e
     if (gesture && gesture.type === 'lift' && T.lift) {   // 05u
       const w = s2w(mainVp(), pt.x, pt.y);
       const du = gesture.du0 + (w.x - gesture.w0.x) / S.plan.s; const dv = gesture.dv0 - (w.y - gesture.w0.y) / S.plan.s;
@@ -10320,6 +10754,16 @@ const EMBEDDED_PLAN = null;
     mapEl.classList.remove('grabbing');
     if (!g) return;
     if (g.type === 'me') { T.placeMe = false; refresh(); save(); return; }
+    if (g.type === 'lzme') {   // 16f: ME let go: the shot is measured from there
+      const at = T.lzMeDrag; T.lzMeDrag = null;
+      if (!cancelled && at && Math.hypot(at.x - g.start.x, at.y - g.start.y) >= 6) {
+        const was = !!T.lzBlock;
+        if (!was) lzBlockStart();
+        if (T.lzBlock && !lzBlockPlace(s2w(mainVp(), at.x, at.y)) && !was) lzBlockCancel();
+      }
+      requestRender(); return;
+    }
+    if (g.type === 'plandrag') { compassFromMap(); refresh(); save(); if (PV.ready) { handOver(); sendLayers(); } return; }   // 16e
     if (g.type === 'lift') { if (T.lift) { T.lift.dragging = false; T.lift.dropped = true; } requestRender(); return; }   // 05u: let go: Set
     if (g.type === 'pull') {
       if (!cancelled && Math.abs(g.pin.depth) >= 0.1) commitPull(g.pin);
@@ -10363,17 +10807,26 @@ const EMBEDDED_PLAN = null;
       if (g.moved) { refresh(); save(); if (t && !cancelled) takePhotos(t); }
       else if (g.tool === 'move') {
         // a second tap on the same side within 0.4 s, close to the first: a point added there (03d)
-        const now = performance.now();
+        const now = (e && e.timeStamp) || performance.now();   // 16f: when the tap happened, not when the busy page got to it
         const last = T.lastSideTap;
         const near = g.touch ? 24 : 8;
-        if (!cancelled && t && g.hit.what === 'side' && last && last.id === t.id && now - last.at < 400 && Math.hypot(g.start.x - last.x, g.start.y - last.y) <= near) {
+        if (!cancelled && t && g.hit.what === 'side' && last && last.id === t.id && now - last.at < 500 && Math.hypot(g.start.x - last.x, g.start.y - last.y) <= near) {
           T.lastSideTap = null;
+          clearTimeout(T.sideTapTimer); T.pullPin = null;   // 16f: the menu that was waiting for a single tap
           closeSidePop();
           addPointOnSide(t, g.hit.i, s2w(mainVp(), g.start.x, g.start.y));
         } else {
           T.lastSideTap = g.hit.what === 'side' ? { id: g.hit.id, at: now, x: g.start.x, y: g.start.y } : null;
-          if (!cancelled && t && g.hit.what === 'side' && autoFold() && t.kind !== 'house' && pullGeom({ id: t.id, i: g.hit.i, depth: 0 })) { T.pullPin = { id: t.id, i: g.hit.i, depth: 0 }; requestRender(); }
-          if (!cancelled && t && g.hit.what === 'side' && autoFold() && ((t.kind === 'plot' && t.closed) || ['boundary', 'fence', 'wall', 'hedge'].includes(t.kind))) openSidePop(t, g.hit.i, e.clientX, e.clientY);
+          // 16f: what one tap opens waits 0.52 s, so a second tap adds a corner instead of landing on it
+          clearTimeout(T.sideTapTimer);
+          if (!cancelled && t && g.hit.what === 'side') {
+            const tid = t.id; const si = g.hit.i; const cx = e.clientX; const cy = e.clientY;
+            T.sideTapTimer = setTimeout(() => {
+              const t2 = traceOf(tid); if (!t2) return;
+              if (autoFold() && t2.kind !== 'house' && pullGeom({ id: tid, i: si, depth: 0 })) { T.pullPin = { id: tid, i: si, depth: 0 }; requestRender(); }
+              if (autoFold() && ((t2.kind === 'plot' && t2.closed) || ['boundary', 'fence', 'wall', 'hedge'].includes(t2.kind))) openSidePop(t2, si, cx, cy);
+            }, 520);
+          }
         }
         S.selTrace = g.hit.id; refresh(); save();
       }
@@ -10593,7 +11046,8 @@ const EMBEDDED_PLAN = null;
     if (document.activeElement !== $('mapLoc') && !$('mapLoc').value && S.mapLoc) $('mapLoc').value = S.mapLoc;
     if (!$('mapKey').value) { try { $('mapKey').value = localStorage.getItem('osKey') || ''; } catch (_) { /* none */ } }
     $('optTitlesRow').hidden = !(S.src && S.src.titlesOff);
-    $('btnPlanHouse').disabled = !S.calibrated || !(S.src && S.src.floors && floorsKept().length) || S.traces.some((t) => outerOf(t));
+    syncRail(); syncWhere();
+    $('btnPlanHouse').disabled = !S.calibrated || !(S.src && S.src.floors && floorsKept().length) || !planHouseFree();
     $('btnPlanPic').hidden = !(S.src && S.traces.some((t) => t.kind === 'house' && outerOf(t)));
     $('btnSuggest').hidden = !S.scans.length; $('btnSuggestHouse').hidden = !S.scans.length;   // 05r: suggestions come from a scan
     $('btnPlanPic').textContent = S.show.planPic === false ? 'Show the floor plan' : 'Show as a building';
@@ -10964,7 +11418,7 @@ const EMBEDDED_PLAN = null;
     updateReadout(T.overMap ? T.lastPt : null);
     $('banner').hidden = !S.src || S.calibrated;
     $('btnUndo').disabled = !undoStack.length;
-    document.querySelector('.rail [data-tool="align"]').disabled = !S.scan;
+    document.querySelector('button[data-tool="align"]').disabled = !S.scan;
     if ($('btnLineUp')) { let pk = null; try { pk = FM.pack; } catch (_) { /* free maps not set up yet */ } $('btnLineUp').disabled = !pk || !S.mapPin || !S.scan; }
     $('btnRedo').disabled = !redoStack.length;
     $('guidesRow').hidden = !S.scans.length;
@@ -10988,7 +11442,7 @@ const EMBEDDED_PLAN = null;
   }
 
   // ---------- buttons ----------
-  document.querySelectorAll('.rail [data-tool]').forEach((b) => b.addEventListener('click', () => selectTool(b.dataset.tool)));
+  document.querySelectorAll('button[data-tool]').forEach((b) => b.addEventListener('click', () => selectTool(b.dataset.tool)));
   $('btnLoad').addEventListener('click', () => { selectTool('move'); $('fileInput').click(); });
   $('btnFit').addEventListener('click', () => { selectTool('move'); fitView(); save(); });
   // a half-placed point (or a tape box still open) is the last thing done: it goes first, in its own tool (05e)
@@ -11061,7 +11515,6 @@ const EMBEDDED_PLAN = null;
     refresh(); save();
   });
   $('btnSplat').addEventListener('click', () => { selectTool('move'); exportSplat(); });
-  $('btnPlotSheet').addEventListener('click', openPlotSheet);
   // the OS map: fetched through plot-fetch, only when asked
   $('btnMapFetch').addEventListener('click', () => {
     const loc = $('mapLoc').value.trim();
@@ -11124,7 +11577,22 @@ const EMBEDDED_PLAN = null;
     if (T.meMode) toast(S.show.me ? 'Me is on: tap any side or boundary for the distance from me to it, square on. Drag the purple dot to move.' : 'Tap where you are standing, then tap any side or boundary for the distance from you to it.');
   });
   $('btnMeClear').addEventListener('click', () => { S.show.me = null; S.show.meSides = []; T.meMode = false; T.placeMe = false; syncMeBtn(); refresh(); save(); requestRender(); });
-  function syncMeBtn() { const b = $('btnMe'); b.setAttribute('aria-pressed', String(!!T.meMode)); b.classList.toggle('on', !!T.meMode); b.textContent = T.meMode ? 'Me: on' : 'Place me'; }
+  $('meWhere').addEventListener('click', () => { if (T.where) whereCancel(); else whereStart(); });   // 16f
+  $('meBarClear').addEventListener('click', () => { T.where = null; $('btnMeClear').click(); syncWhere(); });
+  $('meTypeUse').addEventListener('click', () => { const v = parseFloat($('meType').value); if (!(v > 0 && v < 300)) { toast('Type the reading in metres, like 6.49.'); return; } $('meType').value = ''; whereReading(v); });
+  $('meType').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('meTypeUse').click(); } });
+  function syncMeBtn() { if (typeof syncWhere === 'function') setTimeout(syncWhere, 0); const b = $('btnMe'); b.setAttribute('aria-pressed', String(!!T.meMode)); b.classList.toggle('on', !!T.meMode); const sp = b.querySelector('span'); (sp || b).textContent = T.meMode ? 'Me: on' : 'Place me'; }
+  // 16d: the left menu folds to Me, Undo and Redo once the scale is set; the arrow at its top opens it (and folds it)
+  function syncRail() {
+    const slim = !!T.railSlim && !!S.calibrated;
+    $('app').classList.toggle('rail-slim', slim);
+    const f = $('railFold');
+    f.hidden = !S.calibrated;
+    f.setAttribute('aria-expanded', String(!slim));
+    f.title = slim ? 'Open the left menu' : 'Fold the left menu (Me, Undo and Redo stay)';
+    f.querySelector('span').textContent = slim ? 'More' : 'Less';
+  }
+  $('railFold').addEventListener('click', () => { T.railSlim = !T.railSlim; syncRail(); requestRender(); });
   $('optGuides').addEventListener('change', (e) => { S.show.guides = e.target.checked; save(); requestRender(); if (PV.ready) sendLayers(); if (e.target.checked) { const n = guidesMap().length; toast(n ? `${n} wall and fence line${n === 1 ? '' : 's'} from the scan, dashed blue. Trace snaps to them and to the corners where they meet.` : 'The scan shows no straight walls or fences to draw.'); } });
   $('optFast').checked = boundaryOnly();
   $('optFast').addEventListener('change', (e) => {
@@ -11159,7 +11627,7 @@ const EMBEDDED_PLAN = null;
   function autoFold() { return !navigator.webdriver || !!T.forceAutoFold; }
   // 05r: every part of the right-hand menu folded until opened (Scale opens when a plan comes in, and folds once set)
   function foldAll() { return !navigator.webdriver || !!T.forceFoldAll; }
-  const SEC_FOLD = [['floorBox', 'floorHead'], ['traceBox', 'traceHead'], ['mapBox', 'mapHead'], ['freeBox', 'freeHead']];
+  const SEC_FOLD = [['floorBox', 'floorHead'], ['traceBox', 'traceHead'], ['freeBox', 'freeHead']];
   // 05s: the floors and Stack the floors live in their own part of the menu
   { const fb = $('floorBox'); const fl = $('floorList'); const bf = $('btnFloors');
     if (fb && fl && bf) { fb.append(fl); const acts = document.createElement('div'); acts.className = 'scan-acts'; acts.append(bf); fb.append(acts); } }
@@ -12009,7 +12477,7 @@ const EMBEDDED_PLAN = null;
     if (d.opts) S.opts = { snap: d.opts.snap !== false, ortho: d.opts.ortho !== false };
     if (d.show) S.show = { scan: d.show.scan !== false, walk: d.show.walk !== false, view: d.show.view === 'photo' ? 'photo' : 'heights', levels: d.show.levels === true, os: d.show.os !== false, planPic: d.show.planPic !== false };
     // 05d: the later settings kept too (map layers, lock, wall lines, compass, me, floors)
-    if (d.show) for (const k of ['houseLook', 'free', 'fl', 'lockHouse', 'guides', 'planTop', 'me', 'floorsOver', 'floorUse', 'floorGone', 'meSides', 'myDims', 'laser']) if (d.show[k] !== undefined) S.show[k] = d.show[k];   // 05v: and George's own distances
+    if (d.show) for (const k of ['houseLook', 'free', 'fl', 'lockHouse', 'guides', 'planTop', 'me', 'floorsOver', 'floorUse', 'floorGone', 'meSides', 'myDims', 'laser', 'planSet']) if (d.show[k] !== undefined) S.show[k] = d.show[k];   // 05v: and George's own distances
     if (Array.isArray(d.traces)) {
       S.traces = d.traces.filter((t) => t && Array.isArray(t.pts) && KINDS[t.kind]).map((t) => ({
         id: t.id, kind: t.kind, name: String(t.name || ''), closed: !!t.closed, open: false,
@@ -12027,6 +12495,8 @@ const EMBEDDED_PLAN = null;
         fromTitle: t.fromTitle != null ? String(t.fromTitle) : undefined,
         measuredSides: Array.isArray(t.measuredSides) ? t.measuredSides.filter(Number.isInteger) : undefined,
         fromLaser: t.fromLaser ? true : undefined,
+        fromPlan: t.fromPlan ? true : undefined,                          // 16c
+        floor: Number.isInteger(t.floor) ? t.floor : undefined,           // 16c
         fixedCorners: Array.isArray(t.fixedCorners) ? t.fixedCorners.filter(Number.isInteger) : undefined,
       })).filter((t) => t.pts.length);
       S.nextTraceId = Math.max(d.nextTraceId || 1, ...S.traces.map((t) => t.id + 1));
@@ -13351,7 +13821,8 @@ const EMBEDDED_PLAN = null;
     try { syncInsp(); } catch (_) { /* before the titles row is set up */ }
     $('btnPackPlace').disabled = !P;
     $('freeShowRow').hidden = !P || !S.mapPin;
-    $('freeNudge').hidden = !P || !S.mapPin;
+    $('freeNudge').hidden = !P || !S.mapPin || !!S.show.planSet;
+    syncPlanLay();
     $('freeLayers').hidden = !P || !S.mapPin;
     syncCompass();
     buildFlTicks($('freeLayers'), 'fl');   // 05k: a tick for each layer the pack has
@@ -13638,8 +14109,14 @@ async function postcodeCentroid(pc){
   function titleHouse() { const ht = S.traces.find((t) => t.kind === 'house' && outerOf(t)); return ht ? outerOf(ht) : null; }   // (houseOuter is taken)
   function houseAxisOf(O) { let b = null; for (let i = 0; i < O.length; i++) { const a = O[i]; const c3 = O[(i + 1) % O.length]; const L = Math.hypot(c3.x - a.x, c3.y - a.y); if (!b || L > b.L) b = { L, ang: Math.atan2(c3.y - a.y, c3.x - a.x) }; } return b ? b.ang : 0; }
   // from each house corner, outwards along each of its wall lines to the title's edge
+  // 16f: the title as measured: once laser shots have moved it, the title shape itself; else Land Registry's ring
+  function titleRingNow() {
+    const t = typeof lzTitleTrace === 'function' ? lzTitleTrace() : null;
+    if (t && t.closed && t.pts.length >= 3 && (t.measuredSides || []).length) return t.pts.map((q) => ({ x: q.x, y: q.y }));
+    return inspRing();
+  }
   function titleRays() {
-    const R = inspRing(); const O = titleHouse(); if (!R || !O) return [];
+    const R = titleRingNow(); const O = titleHouse(); if (!R || !O) return [];
     const hit = (p, d) => { let best = null; for (let i = 0; i < R.length; i++) { const a = R[i]; const b = R[(i + 1) % R.length]; const ex = b.x - a.x; const ey = b.y - a.y; const den = d.x * ey - d.y * ex; if (Math.abs(den) < 1e-9) continue;
       const t = ((a.x - p.x) * ey - (a.y - p.y) * ex) / den; const s = ((a.x - p.x) * d.y - (a.y - p.y) * d.x) / den; if (t > 0.02 && s >= -1e-9 && s <= 1 + 1e-9 && (!best || t < best)) best = t; } return best; };
     const ins = (q) => Core.insidePolygon(q.x, q.y, O);
@@ -13657,7 +14134,7 @@ async function postcodeCentroid(pc){
   }
   // from the house to every title corner: across and along the house
   function titleVecs() {
-    const R = inspRing(); const O = titleHouse(); if (!R || !O) return [];
+    const R = titleRingNow(); const O = titleHouse(); if (!R || !O) return [];
     const ang = houseAxisOf(O); const e1 = { x: Math.cos(ang), y: Math.sin(ang) }; const e2 = { x: -e1.y, y: e1.x };
     return R.map((q) => { let b = null; for (const p of O) { const d = Math.hypot(q.x - p.x, q.y - p.y); if (!b || d < b.d) b = { d, p }; } if (!b || b.d > 60) return null;
       const vx = q.x - b.p.x; const vy = q.y - b.p.y; return { a: b.p, b: q, along: vx * e1.x + vy * e1.y, across: vx * e2.x + vy * e2.y, d: b.d, e1, e2 }; }).filter(Boolean);
@@ -14001,12 +14478,14 @@ async function postcodeCentroid(pc){
   function lzText(st) {
     const hold = lzR().hold === 'chest' ? 'laser at your chest, just behind it' : 'laser touching it';
     if (!st) return null;
+    if (st.kind === 'ray' && T.lzRev) return `Stand at the red dot on the boundary (in line with the wall from house corner ${st.label}), ${lzR().hold === 'chest' ? 'laser at your chest, just behind it' : 'laser touching it'}. Aim back along the wall line at house corner ${st.label}: the same distance. Land Registry says about ${lzF(st.expect)}.`;   // 16f
     if (st.kind === 'ray') return `Stand at house corner ${st.label}, ${hold}. Aim along the wall line, away from the house, at the boundary. Land Registry says about ${lzF(st.expect)}.`;
     if (st.kind === 'tri') return `Boundary corner ${st.k + 1}: stand at house corner ${st.label}, ${hold}, and aim at that corner. About ${lzF(st.expect)}.`;
     return `Check: from boundary corner ${st.k + 1}, aim at corner ${st.j + 1}. It should read ${lzF(st.expect)}.`;
   }
   function lzReading(r) {
     lzBeep();
+    if (T.where && (T.where.stage === 'a' || T.where.stage === 'b')) { whereReading(r.level); return; }   // 16f: Where am I
     if (T.lzCal) {   // calibrating the chest offset: first touching, then at the chest
       if (T.lzCal === 1) { T.lzCalA = r.level; T.lzCal = 2; toast(`Touching: ${lzF(r.level)}. Now the same shot with the laser at your chest.`); }
       else { const off = Math.max(0, r.level - T.lzCalA); T.lzCal = 0; lzS().off = +off.toFixed(3); lzS().hold = 'chest'; save(); toast(`Your chest offset is ${Math.round(off * 100)} cm.`); }
@@ -14243,6 +14722,7 @@ async function postcodeCentroid(pc){
     $('lzStep').textContent = msg;
     const r = T.lzPending;
     const bx = T.lzBlock ? lzBlockExpect() : null;
+    $('btnLzRev').disabled = !(st && st.kind === 'ray') || !!T.lzBlock; $('btnLzRev').setAttribute('aria-pressed', String(!!T.lzRev)); $('btnLzRev').classList.toggle('on', !!T.lzRev);   // 16f
     $('btnLzBlock').disabled = !(st && st.kind === 'ray'); $('btnLzBlock').classList.toggle('on', !!T.lzBlock); $('btnLzBlock').textContent = T.lzBlock ? 'Cancel: back to the corner' : 'Blocked? Measure from elsewhere';
     if (T.lzBlock) {
       if (r && bx != null) { const diff = r.level - bx; $('lzRead').innerHTML = `Reading ${lzF(r.level)} · <span class="${Math.abs(diff) < 0.5 ? 'ok' : 'up'}">${diff >= 0 ? '+' : '−'}${Math.abs(diff).toFixed(2)} m</span> <small>from the rough spot tapped</small>`; }
@@ -14257,6 +14737,7 @@ async function postcodeCentroid(pc){
       d.textContent = `${s.kind === 'ray' ? `From ${lzLetter(s.corner)} along the wall` : s.kind === 'tri' ? `Corner ${s.k + 1} from ${lzLetter(s.corner)}` : `Check ${s.k + 1} to ${s.j + 1}`}: ${lzF(used)} (${diff >= 0 ? '+' : '−'}${Math.abs(diff).toFixed(2)})`; box.appendChild(d); });
   }
   function drawLaser(c, vp) {
+    T.lzMeAt = null;
     const panel = $('lzPanel'); if (!panel || panel.hidden || !lzActive()) return;
     const L = lzR(); const O = titleHouse(); if (!O) return;
     c.save();
@@ -14282,18 +14763,25 @@ async function postcodeCentroid(pc){
         c.strokeStyle = '#dc2626'; c.lineWidth = 2.4; c.setLineDash([8, 5]); c.beginPath(); c.moveTo(A.x, A.y); c.lineTo(Bt.x, Bt.y); c.stroke(); c.setLineDash([]);
         c.fillStyle = '#1f4fa8'; c.strokeStyle = '#ffffff'; c.lineWidth = 2; c.beginPath(); c.arc(A.x, A.y, 9, 0, Math.PI * 2); c.fill(); c.stroke();
         c.fillStyle = '#ffffff'; c.font = `700 9px ${FONT}`; c.fillText('ME', A.x, A.y + 0.5);
+        T.lzMeAt = BK.stage === 'a' && BK.ra == null ? { x: A.x, y: A.y } : null;   // 16f: still draggable before its first shot
         T.lzDrawn = { from: { ...me }, to: { ...tgt }, blocked: BK.stage };
       } else T.lzDrawn = { from: null, to: { ...st.to }, blocked: 'me' };
     } else if (st) {
       const A = w2s(vp, st.from.x, st.from.y); const B = w2s(vp, st.to.x, st.to.y);
       c.strokeStyle = '#dc2626'; c.lineWidth = 2.4; c.setLineDash([8, 5]); c.beginPath(); c.moveTo(A.x, A.y); c.lineTo(B.x, B.y); c.stroke(); c.setLineDash([]);
       c.fillStyle = '#dc2626'; c.beginPath(); c.arc(B.x, B.y, 4.5, 0, Math.PI * 2); c.fill();
-      // me: a person at the corner
-      const ux = B.x - A.x; const uy = B.y - A.y; const Lu = Math.hypot(ux, uy) || 1; const mx = A.x - (ux / Lu) * 24; const my = A.y - (uy / Lu) * 24;
+      // me: a person at the corner (16f: or at the boundary end, aiming back)
+      const ux = B.x - A.x; const uy = B.y - A.y; const Lu = Math.hypot(ux, uy) || 1;
+      const mx = T.lzRev ? B.x + (ux / Lu) * 24 : A.x - (ux / Lu) * 24; const my = T.lzRev ? B.y + (uy / Lu) * 24 : A.y - (uy / Lu) * 24;
+      T.lzMeAt = { x: mx, y: my };
       c.fillStyle = '#1f4fa8'; c.strokeStyle = '#ffffff'; c.lineWidth = 2; c.beginPath(); c.arc(mx, my, 9, 0, Math.PI * 2); c.fill(); c.stroke();
       c.fillStyle = '#ffffff'; c.font = `700 9px ${FONT}`; c.fillText('ME', mx, my + 0.5);
       T.lzDrawn = { from: { ...st.from }, to: { ...st.to } };
     } else T.lzDrawn = null;
+    if (T.lzMeDrag) {   // 16f: ME being dragged
+      c.globalAlpha = 0.85; c.fillStyle = '#1f4fa8'; c.strokeStyle = '#ffffff'; c.lineWidth = 2; c.beginPath(); c.arc(T.lzMeDrag.x, T.lzMeDrag.y, 9, 0, Math.PI * 2); c.fill(); c.stroke();
+      c.fillStyle = '#ffffff'; c.font = `700 9px ${FONT}`; c.fillText('ME', T.lzMeDrag.x, T.lzMeDrag.y + 0.5); c.globalAlpha = 1;
+    }
     c.restore();
   }
   T.lzReady = true;   // everything above is set up: refresh() may sync the panel from here on
@@ -14343,6 +14831,7 @@ async function postcodeCentroid(pc){
   $('btnLzAccept').addEventListener('click', () => lzAccept());
   $('btnLzRetake').addEventListener('click', () => { T.lzPending = null; syncLaser(); });
   $('btnLzBlock').addEventListener('click', () => { if (T.lzBlock) lzBlockCancel(); else lzBlockStart(); });   // 16a
+  $('btnLzRev').addEventListener('click', () => { T.lzRev = !T.lzRev; syncLaser(); requestRender(); });   // 16f
   $('btnLzCopy').addEventListener('click', async () => { const tx = lzTableText(); try { await navigator.clipboard.writeText(tx); toast('Table copied: paste it into a spreadsheet or an email.'); } catch (_) { deliver('measured-vs-land-registry.txt', tx); } });
   $('btnLzSkip').addEventListener('click', () => { const st = lzCurrent().step; if (!st) return; pushUndo(); lzS().skipped.push(st.key); T.lzPending = null; save(); syncLaser(); requestRender(); });
   $('btnLzType').addEventListener('click', () => { const v = parseFloat($('lzType').value); if (!(v > 0 && v < 300)) { toast('Type the reading in metres, like 6.49.'); return; } $('lzType').value = ''; lzReading({ type: 'reading', value: v, level: v, angle: null, slope: v, mode: null, typed: true }); });
@@ -14390,7 +14879,15 @@ async function postcodeCentroid(pc){
     c.strokeStyle = '#8a3b2e';
     if (flOn('bld')) for (const r of P.buildings || []) { path(r); c.stroke(); }
     c.strokeStyle = '#b0389a';
+    if (flOn('inspire') && S.show.planSet && FM.mmRoads && FM.mmRoads.length) {   // 16e: the road, once the plan is set
+      c.save(); c.fillStyle = 'rgba(120,120,112,0.18)'; c.strokeStyle = '#78786f'; c.lineWidth = 1.2; c.setLineDash([]);
+      for (const r of FM.mmRoads) { path(r.map((q) => [q[0] - P.point[0], q[1] - P.point[1]])); c.fill(); c.stroke(); }
+      c.restore(); c.strokeStyle = '#b0389a';
+    }
+    T.inspDrawn = 0;
     if (flOn('inspire')) for (const t of (P.inspire && P.inspire.polys) || []) {
+      if (S.show.planSet && !t.mine) continue;   // 16e: the neighbours' title lines left off once the plan is set
+      T.inspDrawn++;
       c.lineWidth = t.mine ? 2.6 : 1.1; c.setLineDash(t.mine ? [9, 5] : [5, 4]);
       for (const r of t.rings) { path(r); c.stroke(); }
     }
@@ -14791,6 +15288,38 @@ async function postcodeCentroid(pc){
     });
   });
   $('btnTurnCompass').addEventListener('click', () => { if (turnToCompass()) toast(`The plan is turned so its top faces ${Math.round(S.show.planTop)}°, the house kept where it was. Nudge it to fit the maps.`); });
+  // 16e: the plan moved on the map by (dx, dy) in its own metres; the map stays where it is on screen
+  function movePlanOnMap(dx, dy) {
+    const pin = S.mapPin; if (!pin) return;
+    const vp = mainVp(); const sK = w2s(vp, 0, 0); const K = { e: pin.e0, n: pin.n0 };
+    pin.e0 += Math.cos(pin.rot) * dx - Math.sin(pin.rot) * dy; pin.n0 += Math.sin(pin.rot) * dx + Math.cos(pin.rot) * dy;
+    const c3 = Math.cos(pin.rot); const s3 = Math.sin(pin.rot); const de = K.e - pin.e0; const dn = K.n - pin.n0;
+    setViewAt({ x: c3 * de + s3 * dn, y: -s3 * de + c3 * dn }, sK);
+    requestRender();
+  }
+  function setPlanLay(on) {
+    if (on && !S.mapPin) return;
+    T.planLay = !!on;
+    if (on) { S.show.planSet = false; if (!Number.isFinite(S.mapPin.lock)) S.mapPin.lock = S.mapPin.rot; selectTool('move'); }   // the map kept still as the plan turns
+    syncPlanLay(); save(); requestRender();
+  }
+  function syncPlanLay() {
+    const can = !!S.mapPin;
+    if (!can) T.planLay = false;
+    $('planBar').hidden = !T.planLay;
+    const b = $('btnPlanLay'); b.hidden = !can;
+    b.textContent = S.show.planSet ? 'Move the plan on the map' : T.planLay ? 'Laying the plan: drag it' : 'Lay the plan on the map';
+    b.setAttribute('aria-pressed', String(!!T.planLay));
+    if ($('freeNudge')) $('freeNudge').hidden = $('freeNudge').hidden || !!S.show.planSet;
+  }
+  $('btnPlanLay').addEventListener('click', () => setPlanLay(!T.planLay));
+  $('btnPlanSet').addEventListener('click', () => {
+    pushUndo(); T.planLay = false; S.show.planSet = true;
+    syncFree(); syncPlanLay(); refresh(); save(); requestRender();
+    if (PV.ready) { handOver(); sendLayers(); }
+    toast('The plan is set on its plot: it stays with the map. Only your title and the road are shown now.');
+  });
+  document.querySelectorAll('#planBar [data-lay]').forEach((b) => b.addEventListener('click', () => nudgeFree(b.dataset.lay)));
   function nudgeFree(kind) {
     if (!S.mapPin) return;
     syncHouses();
@@ -14801,9 +15330,9 @@ async function postcodeCentroid(pc){
     const at = (p) => ({ e: pin.e0 + Math.cos(pin.rot) * p.x - Math.sin(pin.rot) * p.y, n: pin.n0 + Math.sin(pin.rot) * p.x + Math.cos(pin.rot) * p.y });
     const locked = Number.isFinite(pin.lock); const vr = viewRot();
     const K = at(cen); const sK = w2s(mainVp(), cen.x, cen.y);   // 05x: where the house's middle is on the map and on screen
-    if (kind[0] === 'q') pushUndo();   // 14a: a quarter turn is one Undo
-    if (kind[0] === 'r' || kind[0] === 'q') {
-      const keep = at(cen); pin.rot += (kind[1] === '+' ? -1 : 1) * (kind[0] === 'q' ? 90 : 0.5) * Math.PI / 180;
+    if (kind[0] === 'q' || kind[0] === 'f') pushUndo();   // 14a: a quarter turn is one Undo (16e: and 5 degrees)
+    if (kind[0] === 'r' || kind[0] === 'q' || kind[0] === 'f') {
+      const keep = at(cen); pin.rot += (kind[1] === '+' ? -1 : 1) * (kind[0] === 'q' ? 90 : kind[0] === 'f' ? 5 : 0.5) * Math.PI / 180;
       const now = at(cen); pin.e0 += keep.e - now.e; pin.n0 += keep.n - now.n;
     } else {
       const d = kind[1] === '+' ? 0.1 : -0.1; let v = kind[0] === 'x' ? { x: d, y: 0 } : { x: 0, y: d };
@@ -15025,6 +15554,23 @@ async function postcodeCentroid(pc){
     houseLook() { return !!S.show.houseLook; },
     traceOpt(id, k, v) { const t = traceOf(id); if (t) { t[k] = v || undefined; refresh(); save(); requestRender(); } return t ? { look: !!t.look, noSnap: !!t.noSnap } : null; },
     wallFaces() { return wallFaces(null).map((f) => ({ face: f.face, a: { x: f.a.x, y: f.a.y }, b: { x: f.b.x, y: f.b.y } })); },
+    railSlim(on) { if (on !== undefined) { T.railSlim = !!on; syncRail(); } return { slim: $('app').classList.contains('rail-slim'), fold: !$('railFold').hidden, shown: [...document.querySelectorAll('.rail > button')].filter((b) => b.offsetParent).map((b) => b.id || b.dataset.tool) }; },
+    planLay(on) { if (on !== undefined) setPlanLay(on); return { drawn: T.inspDrawn || 0, lay: !!T.planLay, set: !!S.show.planSet, bar: !$('planBar').hidden, btn: !$('btnPlanLay').hidden, pin: S.mapPin ? { ...S.mapPin } : null }; },
+    planSet() { $('btnPlanSet').click(); return !!S.show.planSet; },
+    movePlan(dx, dy) { movePlanOnMap(dx, dy); return S.mapPin ? { ...S.mapPin } : null; },
+    meDrawn() { requestRender(); return T.meDrawn || null; },
+    meAt() { return S.show.me ? { ...S.show.me } : null; },
+    whereState() { return T.where ? JSON.parse(JSON.stringify(T.where)) : null; },
+    whereTap(x, y) { return whereMe({ x, y }); },
+    whereRead(v) { return whereReading(v); },
+    lzRev(on) { if (on !== undefined) { T.lzRev = !!on; syncLaser(); } return !!T.lzRev; },
+    lzMeAt() { return T.lzMeAt ? { ...T.lzMeAt } : null; },
+    titleRaysNow() { return titleRays().map((r) => +r.d.toFixed(3)); },
+    floorRaw() { return S.src && S.src.floors ? S.src.floors.map((o) => ({ pts: o.pts.map((q) => ({ u: q.u, v: q.v })), area: o.area, core: o.core ? o.core.map((q) => ({ u: q.u, v: q.v })) : null })) : []; },
+    curves() { return (T.lastCurves || []).slice(); },
+    planHouseFree() { return planHouseFree(); },
+    floorSet(k, what) { setFloor(k, what); return true; },
+    inkAlpha(u, v) { if (!S.src) return null; const c = inkFor(S.src); const d = c.getContext('2d').getImageData(Math.round(u), Math.round(v), 1, 1).data; return d[3]; },
     floors() { const g = S.show.floorGone || []; const pick = floorPicked(); return floorOrder().map((f) => ({ n: f.n, k: f.k, gone: g.includes(f.k), walls: f.k === pick, w: S.calibrated ? +((f.u1 - f.u0) * S.plan.s).toFixed(2) : null, h: S.calibrated ? +((f.v1 - f.v0) * S.plan.s).toFixed(2) : null })); },
     compact() { return $('panel').classList.contains('compact'); },
     inkAlpha(u, v) { const c = inkFor(S.src); return c.getContext('2d').getImageData(Math.round(u), Math.round(v), 1, 1).data[3]; },
@@ -15153,7 +15699,7 @@ async function postcodeCentroid(pc){
         },
         scanPose: S.scanPose, scanAuto: S.scanAuto, show: S.show, scanBusy: T.scanBusy,
         scans: S.scans.map((e, i) => ({ name: e.scan.name, frames: e.scan.frames, pose: e.pose, auto: e.auto, fit: e.fit || null, show: e.show !== false, role: roleOf(e, i) })), cur: S.cur, lockWalls: S.lockWalls,
-        alignDisabled: document.querySelector('.rail [data-tool="align"]').disabled,
+        alignDisabled: document.querySelector('button[data-tool="align"]').disabled,
         hint: $('hint').textContent,
         traces: JSON.parse(JSON.stringify(S.traces)), traceKind: S.traceKind, selTrace: S.selTrace, traceCand: T.traceCand,
         scanBox: S.scan ? scanMapBox() : null, canvas: { w: T.W, h: T.H },
@@ -15293,7 +15839,7 @@ async function postcodeCentroid(pc){
     floorBoxes() { return floorOrder(); },
     foldAll(on) { T.forceFoldAll = !!on; return foldAll(); },
     foldEverything() { foldEverything(); return true; },
-    secFolds() { return { scale: $('scaleBody').hidden, scan: $('scanBody').hidden, traces: $('traceBox').classList.contains('folded'), map: $('mapBox').classList.contains('folded'), free: $('freeBox').classList.contains('folded') }; },
+    secFolds() { return { scale: $('scaleBody').hidden, scan: $('scanBody').hidden, traces: $('traceBox').classList.contains('folded'), map: !$('mapBox').open, free: $('freeBox').classList.contains('folded') }; },
     hedgeRounds() { return T.hedgeRounds || 0; },
     lastViewBack() { return T.lastViewBack || null; },
     planHouse() { const h = planHouse(); return h && { inner: h.inner, outer: h.outer, outline: h.outline, drawnWall: h.drawnWall, wall: h.wall, floors: S.src.floors.length }; },
