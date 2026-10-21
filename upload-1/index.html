@@ -588,6 +588,10 @@ details.adv[open] > :not(summary) { margin-top: 8px; }
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V4M8 8l4-4 4 4M4 15v4h16v-4"/></svg>
       <span>Load</span>
     </button>
+    <button type="button" id="btnPaste" title="Paste plan: a screenshot of the plan copied to the clipboard (PNG or JPEG). Or paste anywhere on the page (long-press then Paste, or Ctrl+V)">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4h6v3H9z"/><path d="M9 5.5H6v15h12v-15h-3"/><path d="M9 12h6M9 15.5h4"/></svg>
+      <span>Paste plan</span>
+    </button>
     <button type="button" id="btnFit" title="Fit to the screen (F)">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg>
       <span>Fit</span>
@@ -779,6 +783,7 @@ details.adv[open] > :not(summary) { margin-top: 8px; }
             <option value="other">Other</option>
           </select>
         </label>
+        <label id="sketchRow" title="Drag one line round: the corners are found where it turns, the sides made straight, and it goes round the house"><input type="checkbox" id="optSketch"> Sketch it: drag one line round, the corners are found for you</label>
         <ul class="trace-list" id="traceList"></ul>
         <p class="areas" id="traceAreas" hidden></p>
         <div class="live-photo" id="livePhoto" hidden>
@@ -4533,7 +4538,8 @@ const Core = (() => {
           // only a CURVED bay (an arch: shallow at both ends, about three quarters of its depth a quarter of the way in):
           // a square or splayed one is kept in the floor, and found there as before (findBays)
           const at = (f) => dep[Math.min(dep.length - 1, Math.round(f * (dep.length - 1)))];
-          const arch = at(0.03) < 0.4 * top && at(0.97) < 0.4 * top && at(0.25) > 0.45 * top && at(0.25) < 0.93 * top && at(0.75) > 0.45 * top && at(0.75) < 0.93 * top;
+          const arch = at(0.03) < 0.4 * top && at(0.97) < 0.4 * top && at(0.25) > 0.45 * top && at(0.25) < 0.93 * top && at(0.75) > 0.45 * top && at(0.75) < 0.93 * top
+            && !([0.35, 0.65].every((f) => Math.abs(at(f) - at(0.5)) <= Math.max(0.5, 0.03 * at(0.5))));   // 18g: a splayed bay's face is flat across its middle third (an arch's falls 5% or more there; no whole-pixel allowance, a small PlanUp curve falls 1 px in 20): not cut off here (#701)
           if (!arch) continue;
           done.add(key);
           for (const [s2, b0, b1] of runs) for (let b = b0; b !== b1; b += g.open) footCut[idx(s2, b)] = 0;
@@ -5137,7 +5143,7 @@ const EMBEDDED_PLAN = null;
 <script id="ui">
 (() => {
   'use strict';
-  const BUILD = '2026-10-18d';
+  const BUILD = '2026-10-18h';
   const $ = (id) => document.getElementById(id);
   const mapEl = $('map');
   // 05u: Set, inside a lifted floor once it is let go
@@ -5465,7 +5471,7 @@ const EMBEDDED_PLAN = null;
     if (!isLoupe && S.src && S.show.storeys && S.show.storeys.length) drawStoreys(c, vp);   // 18b
     if (!isLoupe && S.src) drawTitleExtras(c, vp);   // 05v
     if (!isLoupe) drawCornerVecs(c, vp);   // 05t
-    if (!isLoupe) { drawAngles(c, vp); drawPull(c, vp); drawMeSides(c, vp); drawMe(c, vp); drawWrapPreview(c, vp); }   // 18b: the wrap
+    if (!isLoupe) { drawAngles(c, vp); drawPull(c, vp); drawMeSides(c, vp); drawMe(c, vp); drawWrapPreview(c, vp); drawSketch(c, vp); }   // 18b: the wrap; 18e: the sketch
     if (!isLoupe && T.dragNote) { const N = T.dragNote; const A = w2s(vp, N.a.x, N.a.y); const B = w2s(vp, N.b.x, N.b.y); c.save(); pinLabel(c, (A.x + B.x) / 2, (A.y + B.y) / 2 - 26, `${N.d >= 0 ? '+' : '−'}${Math.abs(N.d).toFixed(2)} m${N.face ? ', ' + N.face : ''}`, 0, 0); c.restore(); }
     if (!isLoupe && T.faceNote) { const F = w2s(vp, T.faceNote.x, T.faceNote.y); c.save(); pinLabel(c, F.x, F.y - 30, T.faceNote.face, 0, 0); c.restore(); }   // 05o
     const placed = [];
@@ -7297,6 +7303,7 @@ const EMBEDDED_PLAN = null;
   // each run of the part's points on the house: its two ends kept, between them the house's corners along its walls,
   // the way round that keeps the part off the house (the shorter way when both do)
   function rewrapPinned(t) {
+    if (slitSides(t).size) return;   // 18h: joined round the house
     const src = pinSrc(t);
     if (!src || !src.closed || t.pts.length < 3) return;   // 05h: a line's part only slides
     const O = src.O;
@@ -7347,6 +7354,167 @@ const EMBEDDED_PLAN = null;
     t.pts = res.map((q) => ({ x: +q.x.toFixed(3), y: +q.y.toFixed(3) }));
     t.sides = carrySides(t.pts, was);   // 05m: was [] (every type lost on a drag)
   }
+  // 18e: SKETCH IT (George: "why can't the drawn boundary be treated the same as an INSPIRE one, with the corners done
+  // automatically"). The line dragged is taken as he drew it: where it turns by more than the hand's wobble (5 cm, or 4
+  // screen pixels when zoomed out) is a corner (Douglas-Peucker); a closed one (ended near its start) has corners within
+  // 4 degrees of square squared, as the plan's outline is; each corner then goes where a tapped point would (an earlier
+  // point, the house's corners and walls, a scan's walls) or onto the title's corner or line within reach; closed round
+  // the house, it is cut round it and joined where it meets itself, as a drawn plot is.
+  function drawSketch(c, vp) {
+    const P = T.sketch; if (!P || P.length < 2) return;
+    c.save(); c.beginPath(); P.forEach((q, i) => { const s = w2s(vp, q.x, q.y); if (i) c.lineTo(s.x, s.y); else c.moveTo(s.x, s.y); });
+    c.lineWidth = 3; c.lineJoin = 'round'; c.lineCap = 'round'; c.strokeStyle = traceColour(S.traceKind); c.globalAlpha = 0.8; c.stroke(); c.restore();
+  }
+  // the line evened out (every few cm, each point the mean of its neighbours: the hand's wobble), its turns found
+  // (Douglas-Peucker), then each side fitted to the line as drawn between them (its ends left out, where the evening
+  // rounded the corner) and the corners put where those sides meet
+  function sketchCorners(raw0, closed, eps, ds) {
+    const raw = [];
+    raw.push({ ...raw0[0] });
+    for (let i = 1; i < raw0.length; i++) {
+      let a = raw[raw.length - 1]; const b = raw0[i]; let d = Math.hypot(b.x - a.x, b.y - a.y);
+      while (d >= ds) { const t = ds / d; a = { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }; raw.push(a); d = Math.hypot(b.x - a.x, b.y - a.y); }
+    }
+    const n = raw.length; if (n < 3) return raw0.slice();
+    const W = 3;
+    const sm = raw.map((_, i) => { let x = 0; let y = 0; let c = 0; for (let k = -W; k <= W; k++) { let j = i + k; if (closed) j = (j + n) % n; else if (j < 0 || j >= n) continue; x += raw[j].x; y += raw[j].y; c++; } return { x: x / c, y: y / c }; });
+    const dp = (i0, i1, out) => {
+      const a = sm[i0 % n]; const b = sm[i1 % n]; const L = Math.hypot(b.x - a.x, b.y - a.y);
+      let k = -1; let dm = -1;
+      for (let i = i0 + 1; i < i1; i++) { const q = sm[i % n]; const d = L > 1e-9 ? Math.abs((b.x - a.x) * (q.y - a.y) - (b.y - a.y) * (q.x - a.x)) / L : Math.hypot(q.x - a.x, q.y - a.y); if (d > dm) { dm = d; k = i; } }
+      if (k < 0 || dm <= eps) return;
+      dp(i0, k, out); out.push(k); dp(k, i1, out);
+    };
+    let idx;
+    if (closed) {
+      let k = 0; let dm = -1; sm.forEach((q, i) => { const d = Math.hypot(q.x - sm[0].x, q.y - sm[0].y); if (d > dm) { dm = d; k = i; } });
+      const o = [0]; dp(0, k, o); o.push(k); dp(k, n, o); idx = o;
+      // the start was only where the hand began: a straight run through it is one side
+      for (let again = true; again && idx.length > 3;) {
+        again = false;
+        for (let i = 0; i < idx.length; i++) {
+          const p = sm[idx[(i - 1 + idx.length) % idx.length]]; const q = sm[idx[i]]; const r = sm[idx[(i + 1) % idx.length]]; const L = Math.hypot(r.x - p.x, r.y - p.y);
+          const d = L > 1e-9 ? Math.abs((r.x - p.x) * (q.y - p.y) - (r.y - p.y) * (q.x - p.x)) / L : 0;
+          if (d <= eps) { idx.splice(i, 1); again = true; break; }
+        }
+      }
+    } else { const o = [0]; dp(0, n - 1, o); o.push(n - 1); idx = o; }
+    // a corner the evening rounded can come out as two: a slight turn (under 12 degrees) right beside another corner is
+    // part of it, not a corner of its own
+    for (let again = true; again && idx.length > (closed ? 3 : 2);) {
+      again = false;
+      const mm = idx.length;
+      for (let i = closed ? 0 : 1; i < (closed ? mm : mm - 1); i++) {
+        const p = sm[idx[(i - 1 + mm) % mm] % n]; const q = sm[idx[i] % n]; const r = sm[idx[(i + 1) % mm] % n];
+        const a1 = Math.atan2(q.y - p.y, q.x - p.x); const a2 = Math.atan2(r.y - q.y, r.x - q.x);
+        let tdeg = Math.abs(((a2 - a1) * 180) / Math.PI) % 360; if (tdeg > 180) tdeg = 360 - tdeg;
+        const near = Math.min(Math.hypot(q.x - p.x, q.y - p.y), Math.hypot(r.x - q.x, r.y - q.y));
+        if (tdeg < 12 && near < Math.max(1, 4 * eps)) { idx.splice(i, 1); again = true; break; }
+      }
+    }
+    const m = idx.length; const nsides = closed ? m : m - 1;
+    // each side: the line through the points drawn along it, less a fifth at each end
+    const lines = [];
+    for (let s2 = 0; s2 < nsides; s2++) {
+      let i0 = idx[s2]; let i1 = idx[(s2 + 1) % m]; if (closed && i1 <= i0) i1 += n;
+      const cut = Math.floor((i1 - i0) * 0.2); const P = []; for (let i = i0 + cut; i <= i1 - cut; i++) P.push(raw[i % n]);
+      if (P.length < 3) { const a = sm[i0 % n]; const b = sm[i1 % n]; const L = Math.hypot(b.x - a.x, b.y - a.y) || 1; lines.push({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, dx: (b.x - a.x) / L, dy: (b.y - a.y) / L }); continue; }
+      let mx = 0; let my = 0; for (const q of P) { mx += q.x; my += q.y; } mx /= P.length; my /= P.length;
+      let sxx = 0; let sxy = 0; let syy = 0; for (const q of P) { const u = q.x - mx; const v = q.y - my; sxx += u * u; sxy += u * v; syy += v * v; }
+      const th = 0.5 * Math.atan2(2 * sxy, sxx - syy); let dx = Math.cos(th); let dy = Math.sin(th);
+      const a = sm[i0 % n]; const b = sm[i1 % n]; if (dx * (b.x - a.x) + dy * (b.y - a.y) < 0) { dx = -dx; dy = -dy; }
+      lines.push({ x: mx, y: my, dx, dy });
+    }
+    const meet = (p, q) => { const den = p.dx * q.dy - p.dy * q.dx; if (Math.abs(den) < 1e-6) return null; const t = ((q.x - p.x) * q.dy - (q.y - p.y) * q.dx) / den; return { x: p.x + p.dx * t, y: p.y + p.dy * t }; };
+    const onto = (L, q) => { const t = (q.x - L.x) * L.dx + (q.y - L.y) * L.dy; return { x: L.x + L.dx * t, y: L.y + L.dy * t }; };
+    let K = idx.map((i) => sm[i % n]);   // where each corner was found, for when two sides hardly meet
+    const corners = () => {
+      const mm = K.length; const C = [];
+      for (let i = 0; i < mm; i++) {
+        const at = K[i]; let c = null;
+        if (closed) c = meet(lines[(i - 1 + mm) % mm], lines[i]);
+        else if (i === 0) c = onto(lines[0], raw[0]);
+        else if (i === mm - 1) c = onto(lines[mm - 2], raw[n - 1]);
+        else c = meet(lines[i - 1], lines[i]);
+        C.push(c && Math.hypot(c.x - at.x, c.y - at.y) <= Math.max(4 * eps, 0.5) ? c : at);
+      }
+      return C;
+    };
+    // a corner the evening rounded can come out as two, with a short side between them: a slight turn (under 12
+    // degrees) beside a short side is part of the other corner, and the short side goes
+    for (let guard = 0; guard < 50 && K.length > (closed ? 3 : 2); guard++) {
+      const C = corners(); const mm = C.length; let hit = -1;
+      for (let i = closed ? 0 : 1; i < (closed ? mm : mm - 1) && hit < 0; i++) {
+        const L0 = lines[(i - 1 + mm) % mm]; const L1 = lines[i % lines.length];
+        let tdeg = Math.abs((Math.atan2(L1.dy, L1.dx) - Math.atan2(L0.dy, L0.dx)) * 180 / Math.PI) % 360; if (tdeg > 180) tdeg = 360 - tdeg;
+        const p = C[(i - 1 + mm) % mm]; const q = C[i]; const r = C[(i + 1) % mm];
+        const sa = Math.hypot(q.x - p.x, q.y - p.y); const sb = Math.hypot(r.x - q.x, r.y - q.y);
+        if (tdeg < 12 && Math.min(sa, sb) < Math.max(1, 4 * eps)) hit = sa <= sb ? (closed ? (i - 1 + mm) % mm : i - 1) : i;   // the shorter side
+      }
+      if (hit < 0) break;
+      // side `hit` runs from corner hit to corner hit+1: both go, its neighbours meet
+      lines.splice(hit, 1);
+      const ka = hit; const kb = (hit + 1) % K.length;
+      const mid = { x: (K[ka].x + K[kb].x) / 2, y: (K[ka].y + K[kb].y) / 2 };
+      if (closed) { K[ka] = mid; K.splice(kb, 1); if (kb < ka) { /* wrapped */ } }
+      else { if (hit === 0) { K.splice(1, 1); } else if (hit === K.length - 2) { K.splice(hit, 1); } else { K[ka] = mid; K.splice(kb, 1); } }
+    }
+    return corners();
+  }
+  function snapSketchCorner(p) {
+    const vp = mainVp();
+    updateTraceCand(null, { x: p.x, y: p.y, reach: Math.max(0.15, 12 / vp.zoom) });
+    const c = T.traceCand; T.traceCand = null;
+    if (c && c.snap) return { x: c.x, y: c.y, snap: c.snap };
+    // the title (INSPIRE), when there is one: its corner, else its line
+    const R = typeof inspRing === 'function' ? inspRing() : null;
+    if (R && R.length >= 3) {
+      const reach = Math.min(1, Math.max(0.4, 20 / vp.zoom));
+      let best = null;
+      for (const q of R) { const d = Math.hypot(q.x - p.x, q.y - p.y); if (d <= reach && (!best || d < best.d)) best = { d, x: q.x, y: q.y }; }
+      if (best) return { x: best.x, y: best.y, snap: 'title corner' };
+      for (let i = 0; i < R.length; i++) {
+        const a = R[i]; const b = R[(i + 1) % R.length]; const dx = b.x - a.x; const dy = b.y - a.y; const L2 = dx * dx + dy * dy; if (L2 < 1e-9) continue;
+        const s = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / L2)); const x = a.x + dx * s; const y = a.y + dy * s; const d = Math.hypot(x - p.x, y - p.y);
+        if (d <= reach * 0.6 && (!best || d < best.d)) best = { d, x, y };
+      }
+      if (best) return { x: best.x, y: best.y, snap: 'title line' };
+    }
+    return { x: p.x, y: p.y, snap: null };
+  }
+  function sketchToTrace(raw) {
+    const vp = mainVp();
+    if (!raw || raw.length < 2) return null;
+    const eps = Math.max(0.05, 6 / vp.zoom);
+    let len = 0; for (let i = 1; i < raw.length; i++) len += Math.hypot(raw[i].x - raw[i - 1].x, raw[i].y - raw[i - 1].y);
+    const gap = Math.hypot(raw[raw.length - 1].x - raw[0].x, raw[raw.length - 1].y - raw[0].y);
+    const closed = gap <= Math.max(0.5, 25 / vp.zoom) && len > 4 * Math.max(0.5, 25 / vp.zoom);
+    let C = sketchCorners(closed ? raw.slice(0, -1) : raw, closed, eps, Math.max(0.03, 2 / vp.zoom));
+    const C0 = C.map((q) => ({ x: +q.x.toFixed(2), y: +q.y.toFixed(2) }));
+    if (closed && C.length >= 3) {
+      // corners within 4 degrees of square squared, on the sketch's own axis (not the sheet's)
+      // (in centimetres: tidyOutline's own half-unit merge is meant for pixels, so 0.5 cm here, not 0.5 m)
+      const sq = Core.tidyOutline(C.map((q) => ({ u: q.x * 100, v: q.y * 100 })), 15, 4, false);
+      if (sq && sq.length >= 3) C = sq.map((q) => ({ x: q.u / 100, y: q.v / 100 }));
+    }
+    const snaps = {};
+    C = C.map((q) => { const s = snapSketchCorner(q); if (s.snap) snaps[s.snap] = (snaps[s.snap] || 0) + 1; return { x: +s.x.toFixed(3), y: +s.y.toFixed(3) }; });
+    C = C.filter((q, i) => { const r = C[(i + 1) % C.length]; return i === C.length - 1 && !closed ? true : Math.hypot(r.x - q.x, r.y - q.y) > 0.01; });
+    if (C.length < (closed ? 3 : 2)) { toast('The sketch was too small to make a shape: drag a longer line, or tap the corners.'); return null; }
+    pushUndo();
+    const o = { id: S.nextTraceId++, kind: S.traceKind, name: '', pts: C, closed: !!closed, open: false, sketched: true };
+    S.traces.push(o); S.selTrace = o.id;
+    let note = '';
+    if (closed && (o.kind === 'plot' || o.kind === 'boundary')) {
+      const cut = cutRoundBuildings(o, null, null); if (cut) note += ` It runs round the ${cut.what} on its corners.`;
+      if (joinRound(o)) note += ' It met itself round the house and is joined there.';
+    }
+    T.lastSketch = { corners: o.pts.length, closed: !!closed, snaps, found: C0 };
+    const sn = Object.entries(snaps).map(([k, n]) => `${n} on ${k === 'vertex' ? 'a corner already there' : k}`).join(', ');
+    refresh(); save(); requestRender();
+    setTimeout(() => toast(`Sketched: ${o.pts.length} corners found${closed ? ', closed' : ''}${sn ? ` (${sn})` : ''}.${note} Drag any corner to move it; Undo takes the sketch off.`), 0);
+    return o;
+  }
   // 18d: A PLOT TAKEN RIGHT ROUND THE HOUSE (George's Slaps job: a plot part pulled off the wall and dragged out past the
   // house, so it went all the way round): it met itself on the far side as two lines from the house out to the edge, a
   // few cm apart, with a jog in the outer edge between them. Formed together: the two lines become one join (the same two
@@ -7379,7 +7547,23 @@ const EMBEDDED_PLAN = null;
         const L2 = Math.hypot(D.x - C.x, D.y - C.y); if (L2 < 0.2 || !onHouse(C) || onHouse(D)) continue;   // in at C (on the house), out at D
         const v = { x: (D.x - C.x) / L2, y: (D.y - C.y) / L2 };
         if (u.x * v.x + u.y * v.y > -Math.cos((6 * Math.PI) / 180)) continue;   // the two run opposite ways
-        if (Math.hypot(C.x - B.x, C.y - B.y) > 0.15) continue;   // and meet at the house
+        if (Math.hypot(C.x - B.x, C.y - B.y) > 0.15) {
+          // 18h: the line out met the house partway along a side that runs on down the wall (George's IMG_0024: a part
+          // pulled off the wall and taken round): that side is split at the house point where the other line comes back
+          // (or the other way round), and the join made there
+          const foot = (p, a, b) => { const dx = b.x - a.x; const dy = b.y - a.y; const L2 = dx * dx + dy * dy; if (L2 < 1e-12) return null; const s = ((p.x - a.x) * dx + (p.y - a.y) * dy) / L2; if (s <= 0.02 || s >= 0.98) return null; const q = { x: a.x + dx * s, y: a.y + dy * s }; return Math.hypot(q.x - p.x, q.y - p.y) < 0.15 ? q : null; };
+          let at = -1; let E = foot(C, A, B);
+          if (E && onHouse(E) && Math.hypot(E.x - A.x, E.y - A.y) >= 0.2) at = i;
+          else { E = foot(B, C, D); if (E && onHouse(E) && Math.hypot(D.x - E.x, D.y - E.y) >= 0.2) at = j; else E = null; }
+          if (at < 0) continue;
+          const was0 = segsOf(t, Array.isArray(t.sides) ? t.sides : []);
+          const pts0 = t.pts.map((q) => ({ x: q.x, y: q.y })); pts0.splice(at + 1, 0, { x: +E.x.toFixed(3), y: +E.y.toFixed(3) });
+          const keep = { pts: t.pts, sides: t.sides, img: t.img };
+          t.pts = pts0; if (Array.isArray(t.sides) || t.kind === 'plot') t.sides = carrySides(t.pts, was0);
+          if (joinRound(t)) return true;
+          t.pts = keep.pts; t.sides = keep.sides; t.img = keep.img;   // no join after all: as it was
+          continue;
+        }
         const off = Math.abs((D.x - B.x) * u.y - (D.y - B.y) * u.x); if (off > 0.15 * Math.max(1, L2 / 3)) continue;   // and lie on one line
         // the inside: the house, between them (B ... C); the rest goes round the outside
         // the outer end: where the join's line meets the outer edge run straight from before A to after D
@@ -7400,6 +7584,47 @@ const EMBEDDED_PLAN = null;
       }
     }
     return false;
+  }
+  // 18h: A PLOT'S BOUNDARY IS ITS OUTER EDGE (George: "plot shapes dragged out from pin are plot boundaries ... not just
+  // traces"): a side is boundary unless it is a join (there and back) or runs along the house's own wall (its ends within
+  // 25 cm of the wall and its middle within 12 cm: a side wrapped round a small step in the wall counts as the wall)
+  function plotEdgeMask(R, O) {
+    const n = R ? R.length : 0; if (!n) return [];
+    const dH = (p) => { if (!O || O.length < 3) return Infinity; let m = Infinity; for (let k = 0; k < O.length; k++) { const a = O[k]; const b = O[(k + 1) % O.length]; const dx = b.x - a.x; const dy = b.y - a.y; const L2 = dx * dx + dy * dy; if (L2 < 1e-12) continue; const s = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / L2)); m = Math.min(m, Math.hypot(a.x + dx * s - p.x, a.y + dy * s - p.y)); } return m; };
+    return R.map((a, i) => {
+      const b = R[(i + 1) % n]; if (Math.hypot(b.x - a.x, b.y - a.y) < 0.01) return false;
+      for (let j = 0; j < n; j++) { if (j === i) continue; const c = R[j]; const d = R[(j + 1) % n]; if (Math.hypot(c.x - b.x, c.y - b.y) < 1e-3 && Math.hypot(d.x - a.x, d.y - a.y) < 1e-3) return false; }
+      const m = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+      if (dH(a) < 0.25 && dH(b) < 0.25 && dH(m) < 0.12) return false;
+      return true;
+    });
+  }
+  // its corners: where the outer edge turns (over 3 degrees), and where it meets the house
+  function plotCornerSet(R, mask) {
+    const n = R ? R.length : 0; const out = new Set(); if (!n) return out;
+    const segs = []; for (let i = 0; i < n; i++) if (mask[i]) segs.push(i);
+    if (!segs.length || segs.length === n) { for (let i = 0; i < n; i++) out.add(i); return out; }
+    const dir = (i) => { const a = R[i]; const b = R[(i + 1) % n]; const L = Math.hypot(b.x - a.x, b.y - a.y) || 1; return { x: (b.x - a.x) / L, y: (b.y - a.y) / L }; };
+    for (let s = 0; s < segs.length; s++) {
+      const i = segs[s]; const j = segs[(s + 1) % segs.length]; const b = R[(i + 1) % n]; const a2 = R[j];
+      if (Math.hypot(b.x - a2.x, b.y - a2.y) > 0.01) { out.add((i + 1) % n); out.add(j); continue; }
+      const u = dir(i); const v = dir(j); if (Math.acos(Math.max(-1, Math.min(1, u.x * v.x + u.y * v.y))) > (3 * Math.PI) / 180) out.add(j);
+    }
+    return out;
+  }
+  // a plot with sides that are not boundary: its edge mask, corners, and the run of edge from a corner to the next
+  function plotOuterOf(t) {
+    if (!t || t.kind !== 'plot' || !t.closed || t.open || t.pts.length < 4) return null;
+    const P = t.pts; const n = P.length; const mk = plotEdgeMask(P, houseOuter()); if (mk.every(Boolean)) return null;
+    const cs = plotCornerSet(P, mk);
+    const run = (i) => { let k = i; let len = 0; for (let g = 0; g < n; g++) { const e = (k + 1) % n; len += Math.hypot(P[e].x - P[k].x, P[e].y - P[k].y); if (cs.has(e)) return { end: e, len }; let m = -1; for (let s2 = 1; s2 <= n; s2++) { const c = (k + s2) % n; if (mk[c]) { m = c; break; } } if (m < 0 || m === i) return { end: e, len }; k = m; } return { end: (i + 1) % n, len }; };
+    return { mk, cs, run };
+  }
+  function plotBoundaryLength(t) {
+    if (!t || t.kind !== 'plot' || !t.closed || t.open || t.pts.length < 3) return null;
+    const mk = plotEdgeMask(t.pts, houseOuter()); let L = 0;
+    t.pts.forEach((a, i) => { if (mk[i]) { const b = t.pts[(i + 1) % t.pts.length]; L += Math.hypot(b.x - a.x, b.y - a.y); } });
+    return L;
   }
   // 18b: A PLOT SHAPE DRAWN OR DRAGGED ACROSS THE HOUSE (George: "flow round shape of house connecting to all vectors of
   // house corners"): the part of it over the house's outside walls taken off, so where it meets the house it runs along
@@ -7462,8 +7687,10 @@ const EMBEDDED_PLAN = null;
       let a2 = 0; for (let i = 0; i < n; i++) { const p = P[i]; const q = P[(i + 1) % n]; a2 += p.x * q.y - q.x * p.y; }
       const ccw = a2 > 0;
       const slit18 = slitSides(t);   // 18d: none at a join's ends
+      const pa18 = plotOuterOf(t);
       for (let i = 0; i < n; i++) {
         if (slit18.has(i) || slit18.has((i - 1 + n) % n)) continue;
+        if (pa18 && !pa18.cs.has(i)) continue;   // 18h: on the house's wall, or a join's end on a straight edge
         const p = P[(i - 1 + n) % n]; const q = P[i]; const r = P[(i + 1) % n];
         const ux = p.x - q.x; const uy = p.y - q.y; const vx = r.x - q.x; const vy = r.y - q.y;
         const Lu = Math.hypot(ux, uy); const Lv = Math.hypot(vx, vy);
@@ -7810,6 +8037,46 @@ const EMBEDDED_PLAN = null;
     const t = traceOf(S.selTrace);
     if (!t || t.kind !== 'plot' || !t.closed || t.open || t.pts.length < 3 || !editing()) return;
     syncHouses();
+    // 18f: from every house corner (George: "from every building plot corner at right angles it can see plot ... and one
+    // from each corner to nearest plot vector"): along each of its wall lines out to the plot, and to the plot corner
+    // nearest it that it can see
+    { const houses = S.traces.filter((o) => o !== t && outerOf(o));
+      if (houses.length) {
+        const P = t.pts; const lab = (x, y, s) => { c.save(); c.font = `600 11px ${FONT}`; const tw = c.measureText(s).width + 8; c.fillStyle = '#ffffff'; c.fillRect(x - tw / 2, y - 9, tw, 18); c.strokeStyle = '#7c3aed'; c.lineWidth = 1; c.strokeRect(x - tw / 2, y - 9, tw, 18); c.fillStyle = '#5b21b6'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(s, x, y + 0.5); c.restore(); };
+        c.save(); c.setLineDash([5, 4]); c.strokeStyle = '#7c3aed'; c.lineWidth = 1.5;
+        for (const o of houses) {
+          const O = outerOf(o); const n = O.length;
+          const sees = (p, q) => { for (let k = 1; k < 10; k++) { const s = k / 10; if (Core.insidePolygon(p.x + (q.x - p.x) * s, p.y + (q.y - p.y) * s, O)) return false; } return true; };
+          const pmk = plotEdgeMask(P, O); const pcs = plotCornerSet(P, pmk);   // 18h: the plot's outer edge and its corners
+          for (let i = 0; i < n; i++) {
+            const p = O[i]; const a = O[(i + n - 1) % n]; const b0 = O[(i + 1) % n];
+            const L1 = Math.hypot(p.x - a.x, p.y - a.y); const L2 = Math.hypot(b0.x - p.x, b0.y - p.y); if (L1 < 1e-6 || L2 < 1e-6) continue;
+            for (const [d, Ls] of [[{ x: (p.x - a.x) / L1, y: (p.y - a.y) / L1 }, L1], [{ x: (p.x - b0.x) / L2, y: (p.y - b0.y) / L2 }, L2]]) {
+              if (Core.insidePolygon(p.x + d.x * 0.05, p.y + d.y * 0.05, O)) continue;   // back along the wall, or into the house
+              if (Ls < 0.5 || lzHugs(O, p, d)) continue;   // not along a step in the wall under 0.5 m, nor just beside the wall
+              let best = null;
+              for (let k = 0; k < P.length; k++) { if (!pmk[k]) continue; const s0 = P[k]; const s1 = P[(k + 1) % P.length]; const ex = s1.x - s0.x; const ey = s1.y - s0.y; const den = d.x * ey - d.y * ex; if (Math.abs(den) < 1e-9) continue;
+                const tt = ((s0.x - p.x) * ey - (s0.y - p.y) * ex) / den; const ss = ((s0.x - p.x) * d.y - (s0.y - p.y) * d.x) / den; if (tt > 0.02 && ss >= -1e-9 && ss <= 1 + 1e-9 && (!best || tt < best)) best = tt; }
+              if (best == null || best > 80) continue;
+              const q = { x: p.x + d.x * best, y: p.y + d.y * best }; const A = w2s(vp, p.x, p.y); const B = w2s(vp, q.x, q.y);
+              if (lzAlongRing(P, p, q, pmk)) continue;   // along the plot's own side (a plot pulled square off the wall): nothing to show
+              c.beginPath(); c.moveTo(A.x, A.y); c.lineTo(B.x, B.y); c.stroke();
+              if (Math.hypot(B.x - A.x, B.y - A.y) > 26) lab((A.x + B.x) / 2, (A.y + B.y) / 2, Core.fmtM(best));
+              T.cornerVecs.push({ kind: 'square', corner: i, d: +best.toFixed(3), dir: { x: +d.x.toFixed(4), y: +d.y.toFixed(4) } });
+            }
+            if (L1 < 0.5 || L2 < 0.5) continue;   // a step in the wall: no nearest-corner line from it
+            let nb = null; P.forEach((q, v) => { if (!pcs.has(v)) return; const dd = Math.hypot(q.x - p.x, q.y - p.y); if (dd > 0.05 && sees(p, q) && (!nb || dd < nb.d)) nb = { d: dd, q, v }; });
+            if (nb) {
+              const A = w2s(vp, p.x, p.y); const B = w2s(vp, nb.q.x, nb.q.y);
+              c.save(); c.setLineDash([2, 4]); c.beginPath(); c.moveTo(A.x, A.y); c.lineTo(B.x, B.y); c.stroke(); c.restore();
+              if (Math.hypot(B.x - A.x, B.y - A.y) > 26) lab(A.x + (B.x - A.x) * 0.7, A.y + (B.y - A.y) * 0.7, Core.fmtM(nb.d));   // further along than the square ones' labels
+              T.cornerVecs.push({ kind: 'nearest', corner: i, v: nb.v, d: +nb.d.toFixed(3) });
+            }
+          }
+        }
+        c.restore();
+        return;
+      } }
     const corners = [];
     for (const o of S.traces) { if (o === t) continue; const O = outerOf(o); if (O) O.forEach((q) => corners.push(q)); else if (o.kind === 'building' && o.closed && !o.open && o.pts.length >= 3) o.pts.forEach((q) => corners.push(q)); }
     if (!corners.length) return;
@@ -8526,7 +8793,7 @@ const EMBEDDED_PLAN = null;
     }
     return true;
   }
-  function mergeTrace(t, eps) {
+  function mergeTrace(t, eps, dupEps) {   // 18e: dupEps, how near a corner on top of the next goes (default eps/2)
     if (!t.closed || t.pts.length < 4) return 0;
     const hasImg = Array.isArray(t.img) && t.img.length === t.pts.length;
     const hasWalls = Array.isArray(t.walls) && t.walls.length === t.pts.length;
@@ -8535,11 +8802,13 @@ const EMBEDDED_PLAN = null;
     for (let again = true; again && t.pts.length > 3;) {
       again = false;
       const n = t.pts.length;
+      const sl18 = slitSides(t);   // 18h
       for (let k = 0; k < n; k++) {
+        if (sl18.has(k) || sl18.has((k - 1 + n) % n)) continue;   // 18h: a join's end stays
         const p = t.pts[(k - 1 + n) % n];
         const q = t.pts[k];
         const r = t.pts[(k + 1) % n];
-        const dup = Math.hypot(q.x - p.x, q.y - p.y) < eps;
+        const dup = Math.hypot(q.x - p.x, q.y - p.y) < (dupEps != null ? dupEps : eps * 0.5);   // 18e
         const L = Math.hypot(r.x - p.x, r.y - p.y);
         const off = L > 1e-9 ? Math.abs((r.x - p.x) * (q.y - p.y) - (r.y - p.y) * (q.x - p.x)) / L : Math.hypot(q.x - p.x, q.y - p.y);
         if (!dup && off >= eps * 0.5) continue;
@@ -8933,15 +9202,18 @@ const EMBEDDED_PLAN = null;
       }
       if (sel && t.pts.length > 1 && !(t.kind === 'house' && t.closed)) {
         const n = t.closed ? t.pts.length : t.pts.length - 1;
+        const pb18 = plotOuterOf(t);   // 18h: a plot with sides on the house: its outer edge, corner to corner
         for (let i = 0; i < n; i++) {
-          const a = t.pts[i];
-          const b = t.pts[(i + 1) % t.pts.length];
+          let a = t.pts[i];
+          let b = t.pts[(i + 1) % t.pts.length];
           const sa = pts[i];
-          const sb = pts[(i + 1) % pts.length];
+          let sb = pts[(i + 1) % pts.length];
+          let run18 = null;
+          if (pb18) { if (!pb18.mk[i] || !pb18.cs.has(i)) continue; run18 = pb18.run(i); b = t.pts[run18.end]; sb = pts[run18.end]; }
           const Ls = Math.hypot(sb.x - sa.x, sb.y - sa.y);
           if (Ls < 40 || slit18.has(i)) continue;   // 18d
           // beside the line while its grips show, clear of it by the label's own size, so the grip stays visible
-          const text = Core.fmtM(Math.hypot(b.x - a.x, b.y - a.y));
+          const text = Core.fmtM(run18 ? run18.len : Math.hypot(b.x - a.x, b.y - a.y));
           let lx = (sa.x + sb.x) / 2;
           let ly = (sa.y + sb.y) / 2;
           if (editing()) {
@@ -9022,7 +9294,8 @@ const EMBEDDED_PLAN = null;
       name.addEventListener('click', (e) => e.stopPropagation());
       const met = document.createElement('span');
       met.className = 'metrics';
-      const L = Core.pathLength(t.pts, t.closed);
+      let L = Core.pathLength(t.pts, t.closed);
+      { const bl = plotBoundaryLength(t); if (bl != null && bl < L - 0.01) L = bl; }   // 18h: a plot round the house: its outer edge
       const outer = outerOf(t);
       if (outer) met.textContent = `inside ${Core.polygonArea(t.pts).toFixed(1)} m\u00b2, outside ${Core.polygonArea(outer).toFixed(1)} m\u00b2`;
       else met.textContent = t.closed ? `${Core.fmtM(L)}, ${Core.polygonArea(t.pts).toFixed(1)} m\u00b2` : `${Core.fmtM(L)}${t.open ? ', drawing' : ''}`;
@@ -10245,6 +10518,24 @@ const EMBEDDED_PLAN = null;
         const c1 = side(best.a, 1);
         const c2 = side(best.b, -1);
         if (!c1 || !c2 || c1.f < 0.85 || c2.f < 0.85) continue;
+        // 18g: each side a thin line (light paper either side of it), not a line drawn across a solid wall (a dormer's
+        // cheek, its window set in from it): beside the side, at 7 cm either way, mostly paper
+        const thickPx = Math.max(6, Math.round(0.6 * (S.src.wallPx || 0)), Math.round(0.07 * ppm));
+        const solid = (sEnd, sb) => {
+          // across the side, at points along it: how wide the dark is there (a drawn line a few pixels, a wall its thickness)
+          const p0 = at(A, t, n, sEnd, d); const p1 = at(A, t, n, sb, 0); const L = Math.hypot(p1.u - p0.u, p1.v - p0.v) || 1;
+          const nu = -(p1.v - p0.v) / L; const nv = (p1.u - p0.u) / L;
+          const dk1 = (u, v) => { const x = Math.round(u); const y = Math.round(v); return x >= 0 && y >= 0 && x < W && y < H && lum[y * W + x] < 140; };
+          let wide = 0; let c = 0;
+          for (let f = 0.15; f <= 0.85; f += 0.05) {
+            const u = p0.u + (p1.u - p0.u) * f; const v = p0.v + (p1.v - p0.v) * f; c++;
+            if (!dk1(u, v)) continue;
+            let run = 1; for (let k = 1; k < 3 * thickPx && dk1(u + nu * k, v + nv * k); k++) run++; for (let k = 1; k < 3 * thickPx && dk1(u - nu * k, v - nv * k); k++) run++;
+            if (run >= thickPx) wide++;
+          }
+          return c && wide / c > 0.5;
+        };
+        if (solid(best.a, c1.sb) || solid(best.b, c2.sb)) continue;
         let ink = 0;
         let cnt = 0;
         for (let dd = 3; dd < d - 2; dd += 2) {
@@ -10450,6 +10741,71 @@ const EMBEDDED_PLAN = null;
     T.iconBumps = dropped;
     return pts.length >= 3 ? pts : P0;
   }
+  // 18g: A DOOR DRAWN OPEN OUTSIDE A WALL (George's Batch 3: "goes round double door", 12 sheets): the leaves and their
+  // swings stood out of the wall line as a box 0.25 to 1.6 m deep over an opening of 0.5 to 3.2 m, and the line went round
+  // them. It is a door, not the house, when nothing in it is wall-thick, its far side is open paper (a bay or a porch has
+  // its face drawn there: glazing or a wall), and there is some thin drawing in it (the leaves and their arcs).
+  function dropSwingBumps(P0) {
+    if (!S.plan || !S.plan.s || !P0 || P0.length < 6) return P0;
+    const ppm = 1 / S.plan.s;
+    const lum = S.src.lumRaw || S.src.raw || S.src.lum; const W = S.src.w; const H = S.src.h;
+    const thickRunPx = Math.max(5, Math.round(0.6 * (S.src.wallPx || 0)), Math.round(0.09 / S.plan.s));
+    const dk = (u, v) => { const x = Math.round(u); const y = Math.round(v); return x >= 0 && y >= 0 && x < W && y < H && lum[y * W + x] < 128; };
+    const dk2 = (u, v) => { for (let a = -2; a <= 2; a++) for (let b = -2; b <= 2; b++) if (dk(u + a, v + b)) return true; return false; };
+    const area2 = (Q) => { let s = 0; for (let i = 0; i < Q.length; i++) { const p = Q[i]; const q = Q[(i + 1) % Q.length]; s += p.u * q.v - q.u * p.v; } return s; };
+    const lineDist = (p, a, b) => { const L = Math.hypot(b.u - a.u, b.v - a.v) || 1; return Math.abs((b.u - a.u) * (p.v - a.v) - (b.v - a.v) * (p.u - a.u)) / L; };
+    const ang = (a, b) => Math.atan2(b.v - a.v, b.u - a.u);
+    const par = (a0, a1, b0, b1) => { let d = Math.abs(ang(a0, a1) - ang(b0, b1)) % Math.PI; if (d > Math.PI / 2) d = Math.PI - d; return d <= (3 * Math.PI) / 180; };
+    const tol = Math.max(3, 0.03 * ppm);
+    let pts = P0.map((q) => ({ u: q.u, v: q.v }));
+    T.swingBumps = [];
+    for (let guard = 0; guard < 20; guard++) {
+      const n = pts.length; if (n < 6) break;
+      const A0 = area2(pts); const sign = A0 > 0 ? 1 : -1;
+      let cut = null;
+      for (let s = 0; s < n && !cut; s++) {
+        for (let k = 2; k <= 6 && !cut; k++) {
+          const A = pts[s]; const B = pts[(s + k) % n]; const pa = pts[(s - 1 + n) % n]; const nb = pts[(s + k + 1) % n];
+          if (!par(pa, A, B, nb)) continue;
+          if (lineDist(B, pa, A) > tol || lineDist(A, B, nb) > tol) continue;
+          const base = Math.hypot(B.u - A.u, B.v - A.v);
+          if (base > 3.2 * ppm || base < 0.5 * ppm) continue;
+          const inner = []; for (let j = 1; j < k; j++) inner.push(pts[(s + j) % n]);
+          const depth = Math.max(...inner.map((p) => lineDist(p, pa, A)));
+          if (depth < 0.25 * ppm || depth > 1.6 * ppm || depth > 1.25 * base) continue;
+          const keep = pts.filter((_, i) => { for (let j = 1; j < k; j++) if (i === (s + j) % n) return false; return true; });
+          if (Math.abs(area2(keep)) >= Math.abs(A0)) continue;   // outward only
+          const tu = (B.u - A.u) / base; const tv = (B.v - A.v) / base; const ou = sign * tv; const ov = -sign * tu;
+          // nothing wall-thick in it, along the wall line or out across it
+          let walled = false;
+          for (let t = 3; t < base - 3 && !walled; t += 2) {
+            let run = 0;
+            for (let d = 2; d <= depth + 2; d++) { if (dk(A.u + tu * t + ou * d, A.v + tv * t + ov * d)) { run++; if (run >= thickRunPx) { walled = true; break; } } else run = 0; }
+          }
+          if (walled) continue;
+          // its far side open: under a third of it drawn (a bay's or porch's face is drawn all along)
+          let far = 0; let fc = 0;
+          for (let t = 0.15 * base; t <= 0.85 * base; t += 2) { fc++; const dd = depth * 0.85; if (dk2(A.u + tu * t + ou * dd, A.v + tv * t + ov * dd)) far++; }
+          if (!fc || far / fc > 0.33) continue;
+          // and some thin drawing in it (the leaves, their swings)
+          let ink = 0; let ic = 0;
+          for (let t = 2; t < base - 2; t += 3) for (let d = 3; d < depth - 1; d += 3) { ic++; if (dk(A.u + tu * t + ou * d, A.v + tv * t + ov * d)) ink++; }
+          if (!ic || ink < Math.max(3, 0.004 * ic)) continue;
+          cut = keep; T.swingBumps.push({ base: +(base / ppm).toFixed(2), depth: +(depth / ppm).toFixed(2), far: +(far / fc).toFixed(2) });
+        }
+      }
+      if (!cut) break;
+      pts = cut;
+      for (let again = true; again && pts.length > 4;) {
+        again = false;
+        for (let i = 0; i < pts.length; i++) {
+          const p = pts[(i - 1 + pts.length) % pts.length]; const q = pts[i]; const r = pts[(i + 1) % pts.length];
+          if (lineDist(q, p, r) <= tol * 0.5) { pts.splice(i, 1); again = true; break; }
+        }
+      }
+    }
+    return pts.length >= 3 ? pts : P0;
+  }
   // 18a: A VALLEY between two parts of the house (George: "jumps across valley"): behind a stretch of a side over white
   // paper (0.5 m or more), a patch of EMPTY paper closed in by lines within 2.5 m, the side itself its open edge. A room
   // behind a doorway is not one: PlanUp writes every room's name and size in it, so it is never empty (and a door's leaf)
@@ -10550,7 +10906,7 @@ const EMBEDDED_PLAN = null;
     const faced = onOuterFace(tidy);
     const again1 = Core.tidyOutline(faced, STEP_M / S.plan.s, 12, true);
     // 18a: icons off once more (now the sides are on the wall's face), then any valley followed in
-    const vall = fillValleys(dropIconBumps(again1.length >= 3 ? again1 : faced));
+    const vall = fillValleys(dropSwingBumps(dropIconBumps(again1.length >= 3 ? again1 : faced)));   // 18g: doors drawn open outside, off
     const again = vall !== again1 ? Core.tidyOutline(vall, STEP_M / S.plan.s, 12, true) : again1;
     T.outlineStages = { straight: straightenRing(floor.core || floor.pts), tidy00, tidy0, tidy, faced, again1, vall, again };
     // a bay drawn in thin lines: round it, square or splayed (05b), or curved (16c); a step at a corner taken off (05f)
@@ -11281,7 +11637,7 @@ const EMBEDDED_PLAN = null;
     if (e.button === 0 && !T.space && S.src && T.lzMeAt && Math.hypot(pt.x - T.lzMeAt.x, pt.y - T.lzMeAt.y) <= (e.pointerType !== 'mouse' ? 24 : 13)) { gesture = { type: 'lzme', start: pt }; T.lzMeDrag = { x: pt.x, y: pt.y }; requestRender(); return; }   // 16f
     if (e.button === 0 && !T.space && S.src && T.where && T.where.stage === 'me') { whereMe(s2w(mainVp(), pt.x, pt.y)); return; }   // 16f
     if (e.button === 0 && !T.space && S.src && T.lzBlock && (T.lzBlock.stage === 'me' || (T.lzBlock.stage === 'a' && T.lzBlock.ra == null && !T.lzPending))) { lzBlockPlace(s2w(mainVp(), pt.x, pt.y)); return; }   // 16a
-    if (e.button === 0 && !T.space && S.src && T.lzSketching) { const w = s2w(mainVp(), pt.x, pt.y); pushUndo(); lzS().sketch.push({ x: +w.x.toFixed(3), y: +w.y.toFixed(3) }); save(); syncLaser(); requestRender(); return; }   // 15a
+    if (e.button === 0 && !T.space && S.src && T.lzSketching) { const w = s2w(mainVp(), pt.x, pt.y); pushUndo(); lzS().sketchMine = true; lzS().sketch.push({ x: +w.x.toFixed(3), y: +w.y.toFixed(3) }); save(); syncLaser(); requestRender(); return; }   // 15a
     if (e.button === 0 && !T.space && S.src && T.planLay && S.mapPin && S.tool === 'move' && !T.meMode) { pushUndo(); gesture = { type: 'plandrag', last: pt }; mapEl.classList.add('grabbing'); return; }   // 16e
     if (e.button === 0 && !T.space && S.src && T.inspPick) { if (inspPickAt(pt)) { T.inspPick = false; syncInsp(); } return; }
     if (e.button === 0 && !T.space && S.src && T.dimMode) {
@@ -11367,6 +11723,12 @@ const EMBEDDED_PLAN = null;
       return;
     }
     if (!S.src) return;
+    // 18e: Sketch it: a drag with Trace (nothing being traced, not a house) draws a line to find the corners on
+    if (S.tool === 'trace' && S.opts.sketch && !openTrace() && S.traceKind !== 'house' && S.calibrated) {
+      gesture = { type: 'sketch', pts: [s2w(mainVp(), pt.x, pt.y)], scr: [{ x: pt.x, y: pt.y }], touch: e.pointerType !== 'mouse', start: pt };
+      T.sketch = gesture.pts;
+      return;
+    }
     if (placing()) {
       gesture = { type: 'place', touch: e.pointerType !== 'mouse' };
       updateCandidate(pt);
@@ -11424,6 +11786,11 @@ const EMBEDDED_PLAN = null;
     }
     if (gesture && gesture.type === 'crop') { T.cropDrag.b = s2i(mainVp(), pt.x, pt.y); requestRender(); return; }
     if (gesture && (gesture.type === 'slide' || gesture.type === 'turn')) { moveScan(gesture, pt); updateReadout(pt); return; }
+    if (gesture && gesture.type === 'sketch') {   // 18e
+      const l = gesture.scr[gesture.scr.length - 1];
+      if (Math.hypot(pt.x - l.x, pt.y - l.y) >= 2) { gesture.scr.push({ x: pt.x, y: pt.y }); gesture.pts.push(s2w(mainVp(), pt.x, pt.y)); requestRender(); }
+      return;
+    }
     if (gesture && gesture.type === 'stpt') {   // 18c
       const st = storeyByK(gesture.k);
       if (st && st.img[gesture.i]) {
@@ -11477,6 +11844,17 @@ const EMBEDDED_PLAN = null;
     }
     if (g.type === 'plandrag') { compassFromMap(); refresh(); save(); if (PV.ready) { handOver(); sendLayers(); } return; }   // 16e
     if (g.type === 'lift') { if (T.lift) { T.lift.dragging = false; T.lift.dropped = true; } requestRender(); return; }   // 05u: let go: Set
+    if (g.type === 'sketch') {   // 18e
+      T.sketch = null;
+      if (cancelled) { requestRender(); return; }
+      let len = 0; for (let i = 1; i < g.scr.length; i++) len += Math.hypot(g.scr[i].x - g.scr[i - 1].x, g.scr[i].y - g.scr[i - 1].y);
+      if (len < 14) {   // a tap: one point, as without the tick
+        updateTraceCand(null, { x: g.pts[0].x, y: g.pts[0].y, reach: 12 / mainVp().zoom }); commitTrace(); T.traceCand = null; requestRender(); return;
+      }
+      sketchToTrace(g.pts);
+      requestRender();
+      return;
+    }
     if (g.type === 'stpt') { if (g.moved) { refresh(); save(); if (PV.ready) { handOver(); sendLayers(); } } requestRender(); return; }   // 18c
     if (g.type === 'pull') {
       if (!cancelled && Math.abs(g.pin.depth) >= 0.1) commitPull(g.pin);
@@ -11512,7 +11890,7 @@ const EMBEDDED_PLAN = null;
       if (g.moved && t && !cancelled && t.closed && !g.extrude && !g.sd) {
         const vp = mainVp();
         if (g.hit.what === 'side') snapSideToLine(t, g.hit.i, 12 / vp.zoom);
-        const gone = mergeTrace(t, Math.max(0.02, 6 / vp.zoom));
+        const gone = mergeTrace(t, 0.02, Math.max(0.02, 6 / vp.zoom));   // 18e: off the line under 1 cm only (George: a point put for a slight turn in a wall stays), whatever the zoom; one dragged onto the next still goes
         if (gone) toast(`${gone} corner${gone === 1 ? '' : 's'} removed: the wall runs straight there now. Undo puts ${gone === 1 ? 'it' : 'them'} back.`);
       }
       if (g.moved && t && !cancelled && (t.kind === 'plot' || t.kind === 'boundary') && t.closed && !t.open && t.pts.length >= 3) {   // 18b: pinned parts and boundaries too
@@ -12077,7 +12455,7 @@ const EMBEDDED_PLAN = null;
     undoStack.length = 0; redoStack.length = 0;
     try { suggestCache.clear(); } catch (_) { /* none */ }
     $('banner').hidden = true;
-    $('optSnap').checked = S.opts.snap; $('optOrtho').checked = S.opts.ortho;
+    $('optSnap').checked = S.opts.snap; $('optOrtho').checked = S.opts.ortho; $('optSketch').checked = !!S.opts.sketch;   // 18e
     $('optScan').checked = S.show.scan; $('optWalk').checked = S.show.walk; $('optLevels').checked = !!S.show.levels;
     selectTool('move');
     T.booted = true;
@@ -12173,6 +12551,47 @@ const EMBEDDED_PLAN = null;
   // ---------- buttons ----------
   document.querySelectorAll('button[data-tool]').forEach((b) => b.addEventListener('click', () => selectTool(b.dataset.tool)));
   $('btnLoad').addEventListener('click', () => { selectTool('move'); $('fileInput').click(); });
+  // 18g: PASTE PLAN. The plan image from the clipboard goes down exactly the path a loaded file does (loadFile), so the
+  // scale check, the tracing and everything after are the same. The read is started inside the tap itself (nothing
+  // awaited before it): iPadOS (Bluefy, Safari) then shows its own Paste bubble, tapped to allow it.
+  const PASTE_TYPES = ['image/png', 'image/jpeg'];
+  const NO_IMAGE = 'There is no image on the clipboard. Copy the plan (a screenshot of it) first, then Paste plan.';
+  function pastedName(type) {
+    const d = new Date(); const z = (n) => String(n).padStart(2, '0');
+    return `Pasted plan ${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())} ${z(d.getHours())}-${z(d.getMinutes())}-${z(d.getSeconds())}.${type === 'image/jpeg' ? 'jpg' : 'png'}`;
+  }
+  function loadPastedBlob(blob, type) {
+    const t = PASTE_TYPES.includes(type) ? type : (PASTE_TYPES.includes(blob.type) ? blob.type : 'image/png');
+    const f = new File([blob], pastedName(t), { type: t });
+    T.lastPaste = { type: t, size: blob.size, name: f.name };
+    loadFile(f);   // the same loader as a file from Load
+  }
+  $('btnPaste').addEventListener('click', () => {
+    selectTool('move');
+    const cb = navigator.clipboard;
+    if (!cb || typeof cb.read !== 'function') { toast('This browser cannot read the clipboard from a button. Long-press the plan and choose Paste, or press Ctrl+V.'); return; }
+    let reading;
+    try { reading = cb.read(); } catch (e) { reading = Promise.reject(e); }   // inside the tap
+    reading.then(async (items) => {
+      for (const it of items || []) {
+        const ty = PASTE_TYPES.find((x) => (it.types || []).includes(x));
+        if (ty) { loadPastedBlob(await it.getType(ty), ty); return; }
+      }
+      toast(NO_IMAGE);
+    }).catch((e) => {
+      if (e && e.name === 'NotAllowedError') toast('Paste was not allowed. Tap Paste plan again and tap Paste in the bubble, or long-press the page and choose Paste.');
+      else toast(NO_IMAGE);
+    });
+  });
+  document.addEventListener('paste', (e) => {
+    const dt = e.clipboardData; if (!dt) return;
+    let file = null;
+    for (const it of dt.items || []) if (it.kind === 'file' && PASTE_TYPES.includes(it.type)) { file = it.getAsFile(); if (file) break; }
+    if (!file) for (const f of dt.files || []) if (PASTE_TYPES.includes(f.type)) { file = f; break; }
+    if (file) { e.preventDefault(); selectTool('move'); loadPastedBlob(file, file.type); return; }
+    const t = e.target; const typing = t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName || ''));
+    if (!typing) toast(NO_IMAGE);   // text pasted into a box is left alone
+  });
   $('btnFit').addEventListener('click', () => { selectTool('move'); fitView(); save(); });
   // a half-placed point (or a tape box still open) is the last thing done: it goes first, in its own tool (05e)
   $('btnUndo').addEventListener('click', () => {
@@ -12208,6 +12627,7 @@ const EMBEDDED_PLAN = null;
     recomputeScale();
     refresh(); save();
   });
+  $('optSketch').addEventListener('change', (e) => { S.opts.sketch = e.target.checked; save(); if (e.target.checked) toast('Sketch it: with Trace, drag one line round the plot without stopping. Where it turns is a corner; it goes round the house by itself. A tap still places one point.'); });   // 18e
   $('optSnap').addEventListener('change', (e) => {
     S.opts.snap = e.target.checked;
     save();
@@ -13115,6 +13535,8 @@ const EMBEDDED_PLAN = null;
     PV.lastSent = null;
     refresh(); saveNow(); requestRender();
     if (PV.ready) { handOver(); sendLayers(); }
+    { pushUndo(); let jn = 0; for (const t of S.traces) if (joinRound(t)) jn++;   // 18h: its own step: Undo puts the plot back as saved
+      if (jn) { T.joinedOnOpen = jn; refresh(); saveNow(); requestRender(); setTimeout(() => toast('The plot that went round the house is joined where it met itself, the outer edge straight on. Undo puts it back as saved.'), 2600); } else undoStack.pop(); }
     const n = S.traces.length;
     toast(`Job opened: ${S.src.name}, ${n} line${n === 1 ? '' : 's'} and shape${n === 1 ? '' : 's'}${T.jobScans.length ? `. Load ${T.jobScans.map((s) => s.name).join(', ')} and ${T.jobScans.length === 1 ? 'it goes' : 'they go'} back where ${T.jobScans.length === 1 ? 'it' : 'they'} sat` : ''}${T.jobPlot ? '. The Plot screen’s items come back when it opens' : ''}.`);
     return true;
@@ -15151,25 +15573,75 @@ async function postcodeCentroid(pc){
   const lzLetter = (i) => String.fromCharCode(65 + (i % 26)) + (i >= 26 ? Math.floor(i / 26) : '');
   const lzF = (v) => `${v.toFixed(2)} m`;
   // the house corners and wall lines: from each corner, outwards along both wall lines (as the title distances)
-  function lzRays() {
-    const R = inspRing(); const O = titleHouse(); if (!R || !O) return [];
+  function lzRays(R0) {
+    const R = R0 || inspRing(); const O = titleHouse(); if (!R || !O) return [];   // 18f: or the plot drawn
+    const mk = R0 ? plotEdgeMask(R, O) : null;   // 18h: a drawn plot's outer edge only
     const out = []; const n = O.length;
     for (let i = 0; i < n; i++) {
       const p = O[i]; const a = O[(i + n - 1) % n]; const b0 = O[(i + 1) % n];
       const L1 = Math.hypot(p.x - a.x, p.y - a.y); const L2 = Math.hypot(b0.x - p.x, b0.y - p.y); if (L1 < 1e-6 || L2 < 1e-6) continue;
       [{ x: (p.x - a.x) / L1, y: (p.y - a.y) / L1 }, { x: (p.x - b0.x) / L2, y: (p.y - b0.y) / L2 }].forEach((d, j) => {
         if (Core.insidePolygon(p.x + d.x * 0.05, p.y + d.y * 0.05, O)) return;
+        if (R0 && (j === 0 ? L1 : L2) < 0.5) return;   // 18f: not along a step in the wall under 0.5 m (checking a drawn plot)
+        if (R0 && lzHugs(O, p, d)) return;   // 18f: nor a line running on just beside the house's own wall
         let best = null;
-        for (let k = 0; k < R.length; k++) { const s0 = R[k]; const s1 = R[(k + 1) % R.length]; const ex = s1.x - s0.x; const ey = s1.y - s0.y; const den = d.x * ey - d.y * ex; if (Math.abs(den) < 1e-9) continue;
+        for (let k = 0; k < R.length; k++) { if (mk && !mk[k]) continue; const s0 = R[k]; const s1 = R[(k + 1) % R.length]; const ex = s1.x - s0.x; const ey = s1.y - s0.y; const den = d.x * ey - d.y * ex; if (Math.abs(den) < 1e-9) continue;
           const t = ((s0.x - p.x) * ey - (s0.y - p.y) * ex) / den; const s = ((s0.x - p.x) * d.y - (s0.y - p.y) * d.x) / den; if (t > 0.02 && s >= -1e-9 && s <= 1 + 1e-9 && (!best || t < best.t)) best = { t, side: k }; }
         if (!best || best.t > 80) return;
+        if (R0 && lzAlongRing(R, p, { x: p.x + d.x * best.t, y: p.y + d.y * best.t }, mk)) return;   // 18f: along the plot's own side
         out.push({ kind: 'ray', key: `r:${i}:${j}`, corner: i, a: { x: p.x, y: p.y }, dir: d, b: { x: p.x + d.x * best.t, y: p.y + d.y * best.t }, d: best.t, side: best.side });
       });
     }
     return out;
   }
+  // 18f: FROM SCRATCH WITH A PLOT DRAWN (George: "when I have drawn a plot shape from wall pin pull out why can't it use the
+  // boundary corners"): the plot drawn is the boundary to check. Its shape as it was when the first shot was taken is
+  // kept (L.ring), so the shots' sides stay its sides however the plot moves as they come in.
+  function lzDrawnPlot() {
+    const L = lzR();
+    if (L.plotId != null) { const t = traceOf(L.plotId); if (t && t.closed && !t.open && t.pts.length >= 3) return t; }
+    const ok = (t) => t && t.kind === 'plot' && t.closed && !t.open && t.pts.length >= 3 && !t.fromLaser && t.fromTitle == null;
+    const sel = traceOf(S.selTrace); if (ok(sel)) return sel;
+    let best = null; for (const t of S.traces) if (ok(t) && (!best || Math.abs(Core.polygonArea(t.pts)) > Math.abs(Core.polygonArea(best.pts)))) best = t;
+    return best;
+  }
+  function lzPlotMode() {
+    const L = lzR(); if (L.mode !== 'sketch' || T.lzSketching) return false;
+    // 18h: corners sketched before (from scratch in 18e, before a plot could be checked) give way to the plot drawn; ones
+    // sketched by hand since (sketchMine), or shots already taken to them, keep the sketch
+    if (L.sketch.length >= 3 && (L.sketchMine || L.shots.some((s) => s.kind === 'tri'))) return false;
+    return Array.isArray(L.ring) && L.ring.length >= 3 || !!lzDrawnPlot();
+  }
+  function lzPlotCorners() { const R = lzPlotRing(); return R ? plotCornerSet(R, plotEdgeMask(R, titleHouse())).size : 0; }   // 18h: the outer edge's
+  function lzPlotRing() { const L = lzR(); if (Array.isArray(L.ring) && L.ring.length >= 3) return L.ring; const t = lzDrawnPlot(); return t ? t.pts.map((q) => ({ x: q.x, y: q.y })) : null; }
+  // from each house corner, the plot corner nearest it that it can see
+  function lzNear(R) {
+    const O = titleHouse(); if (!O || !R) return [];
+    const out = [];
+    O.forEach((p, i) => {
+      const n0 = O.length; if (Math.hypot(p.x - O[(i + n0 - 1) % n0].x, p.y - O[(i + n0 - 1) % n0].y) < 0.5 || Math.hypot(p.x - O[(i + 1) % n0].x, p.y - O[(i + 1) % n0].y) < 0.5) return;   // a step in the wall, not a corner to measure from
+      let best = null;
+      const cs = plotCornerSet(R, plotEdgeMask(R, O));   // 18h: the outer edge's corners
+      R.forEach((q, v) => { const d = Math.hypot(q.x - p.x, q.y - p.y); if (cs.has(v) && d > 0.05 && lzSees(O, p, q) && (!best || d < best.d)) best = { d, v, q }; });
+      if (best) out.push({ kind: 'near', key: `n:${i}`, corner: i, v: best.v, from: { x: p.x, y: p.y }, to: { x: best.q.x, y: best.q.y }, expect: best.d, label: lzLetter(i) });
+    });
+    return out;
+  }
   // from scratch: two house corners per sketched corner, the pair meeting nearest a right angle, neither through the house
   function lzSees(O, p, q) { for (let k = 1; k < 10; k++) { const t = k / 10; if (Core.insidePolygon(p.x + (q.x - p.x) * t, p.y + (q.y - p.y) * t, O)) return false; } return true; }
+  // 18f: a line out from a corner that runs on within 25 cm of the house's wall (past a small step) measures nothing
+  function lzAlongRing(R, p, q, mk) {   // the line p-q lying on one of the ring's sides (a plot side in line with the house wall)
+    const m = { x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 };
+    for (let k = 0; k < R.length; k++) { if (mk && !mk[k]) continue; /* 18h: a join or the house's wall is not a plot side */ const a = R[k]; const b = R[(k + 1) % R.length]; const dx = b.x - a.x; const dy = b.y - a.y; const L2 = dx * dx + dy * dy; if (L2 < 1e-9) continue;
+      const s = Math.max(0, Math.min(1, ((m.x - a.x) * dx + (m.y - a.y) * dy) / L2)); if (Math.hypot(a.x + dx * s - m.x, a.y + dy * s - m.y) < 0.02) return true; }
+    return false;
+  }
+  function lzHugs(O, p, d) {
+    const q = { x: p.x + d.x * 1, y: p.y + d.y * 1 };
+    for (let k = 0; k < O.length; k++) { const a = O[k]; const b = O[(k + 1) % O.length]; const dx = b.x - a.x; const dy = b.y - a.y; const L2 = dx * dx + dy * dy; if (L2 < 1e-9) continue;
+      const s = Math.max(0, Math.min(1, ((q.x - a.x) * dx + (q.y - a.y) * dy) / L2)); if (Math.hypot(a.x + dx * s - q.x, a.y + dy * s - q.y) < 0.25) return true; }
+    return false;
+  }
   function lzStations(O, c) {
     const ok = O.map((p, i) => ({ p, i })).filter((s) => lzSees(O, s.p, c) && Math.hypot(c.x - s.p.x, c.y - s.p.y) < 60);
     let best = null;
@@ -15202,6 +15674,12 @@ async function postcodeCentroid(pc){
   function lzSteps() {
     const L = lzR(); const O = titleHouse(); if (!O) return [];
     if (L.mode === 'title') return lzRays().map((r) => ({ ...r, from: r.a, to: r.b, expect: r.d, label: lzLetter(r.corner) }));
+    if (lzPlotMode()) {   // 18f: every house corner: along its wall lines to the plot, then to the plot corner nearest it
+      const R = lzPlotRing(); const rays = lzRays(R).map((r) => ({ ...r, from: r.a, to: r.b, expect: r.d, label: lzLetter(r.corner) })); const near = lzNear(R);
+      const out = []; const n = O.length;
+      for (let i = 0; i < n; i++) { rays.filter((r) => r.corner === i).forEach((r) => out.push(r)); near.filter((r) => r.corner === i).forEach((r) => out.push(r)); }
+      return out;
+    }
     const steps = []; const fixed = lzFixed();
     L.sketch.forEach((c, k) => {
       const st = lzStations(O, c); if (!st) return;
@@ -15218,7 +15696,9 @@ async function postcodeCentroid(pc){
   function lzText(st) {
     const hold = lzR().hold === 'chest' ? 'laser at your chest, just behind it' : 'laser touching it';
     if (!st) return null;
-    if (st.kind === 'ray' && T.lzRev) return `Stand at the red dot on the boundary (in line with the wall from house corner ${st.label}), ${lzR().hold === 'chest' ? 'laser at your chest, just behind it' : 'laser touching it'}. Aim back along the wall line at house corner ${st.label}: the same distance. Land Registry says about ${lzF(st.expect)}.`;   // 16f
+    if (st.kind === 'ray' && T.lzRev) return `Stand at the red dot on the boundary (in line with the wall from house corner ${st.label}), ${lzR().hold === 'chest' ? 'laser at your chest, just behind it' : 'laser touching it'}. Aim back along the wall line at house corner ${st.label}: the same distance. ${lzPlotMode() ? 'The plot you drew' : 'Land Registry'} says about ${lzF(st.expect)}.`;   // 16f; 18f
+    if (st.kind === 'ray' && lzPlotMode()) return `Stand at house corner ${st.label}, ${hold}. Aim along the wall line, away from the house, at the boundary. The plot you drew says about ${lzF(st.expect)}.`;   // 18f
+    if (st.kind === 'near') return `Stand at house corner ${st.label}, ${hold}, and aim at plot corner ${st.v + 1} (the nearest). The plot you drew says about ${lzF(st.expect)}.`;   // 18f
     if (st.kind === 'ray') return `Stand at house corner ${st.label}, ${hold}. Aim along the wall line, away from the house, at the boundary. Land Registry says about ${lzF(st.expect)}.`;
     if (st.kind === 'tri') return `Boundary corner ${st.k + 1}: stand at house corner ${st.label}, ${hold}, and aim at that corner. About ${lzF(st.expect)}.`;
     return `Check: from boundary corner ${st.k + 1}, aim at corner ${st.j + 1}. It should read ${lzF(st.expect)}.`;
@@ -15235,7 +15715,7 @@ async function postcodeCentroid(pc){
     // 16b: beep signal: does it match what was expected?
     if (LZ.chr && lzPrefs().sig !== false && !T.lzBlock) {
       const st = lzCurrent().step;
-      if (st && (st.kind === 'ray' || st.kind === 'check')) { const used = r.level - (lzR().hold === 'chest' ? lzR().off : 0); const d = Math.abs(used - st.expect);
+      if (st && (st.kind === 'ray' || st.kind === 'check' || st.kind === 'near')) { const used = r.level - (lzR().hold === 'chest' ? lzR().off : 0); const d = Math.abs(used - st.expect);
         if (d < 0.1) lzBeepPattern([150]); else if (d >= 0.3) lzBeepPattern([150, 150, 150]); }
     }
   }
@@ -15248,6 +15728,8 @@ async function postcodeCentroid(pc){
     if (st.kind === 'ray') Object.assign(shot, { dir: { ...st.dir }, side: st.side, corner: st.corner });
     if (st.kind === 'tri') Object.assign(shot, { k: st.k, n: st.n, corner: st.corner });
     if (st.kind === 'check') Object.assign(shot, { k: st.k, j: st.j });
+    if (st.kind === 'near') Object.assign(shot, { corner: st.corner, v: st.v, to: { x: st.to.x, y: st.to.y } });   // 18f
+    if (lzPlotMode() && !(Array.isArray(L.ring) && L.ring.length >= 3)) { const t0 = lzDrawnPlot(); if (t0) { L.ring = t0.pts.map((q) => ({ x: q.x, y: q.y })); L.plotId = t0.id; } }   // 18f
     L.shots.push(shot); T.lzPending = null;
     lzApply(); save(); syncLaser(); requestRender();
     if (LZ.chr && lzPrefs().sig !== false) { const c2 = lzCurrent(); if (!c2.step && c2.steps.length) lzBeepPattern([650], 300); }   // 16b: the last shot done
@@ -15321,38 +15803,40 @@ async function postcodeCentroid(pc){
   // 16a: the measured shots against what Land Registry says
   function lzTableRows() {
     const L = lzR(); const n = {};
-    return L.shots.filter((s) => s.kind === 'ray').map((s) => {
+    return L.shots.filter((s) => s.kind === 'ray' || s.kind === 'near').map((s) => {   // 18f: and to the nearest plot corner
       const used = lzUsed(s); const diff = used - s.expect; const a = Math.abs(diff);
       n[s.side] = (n[s.side] || 0) + 1;
-      return { from: lzLetter(s.corner), side: s.side, lr: s.expect, measured: used, diff, mark: a < 0.1 ? 'fine' : a < 0.3 ? 'check' : 'big', via: !!s.via };
+      return { from: lzLetter(s.corner) + (s.kind === 'near' ? ` to plot corner ${s.v + 1}` : ''), side: s.side, lr: s.expect, measured: used, diff, mark: a < 0.1 ? 'fine' : a < 0.3 ? 'check' : 'big', via: !!s.via };
     });
   }
   function lzTableSum(rows) {
     if (!rows.length) return null;
     const big = rows.reduce((p, q) => (Math.abs(q.diff) > Math.abs(p.diff) ? q : p));
-    const t = lzTitleTrace(); const R = inspRing();
+    const pm = lzPlotMode(); const t = pm ? lzDrawnPlot() : lzTitleTrace(); const R = pm ? lzPlotRing() : inspRing();   // 18f
     const area = (P) => (P && P.length > 2 ? Math.abs(Core.polygonArea(P)) : null);
     return { n: rows.length, fine: rows.filter((q) => q.mark === 'fine').length, check: rows.filter((q) => q.mark === 'check').length, bigN: rows.filter((q) => q.mark === 'big').length,
       largest: big, titleArea: area(R), measuredArea: t ? area(t.pts) : null };
   }
   function lzTableSync() {
     const box = $('lzTableBox'); if (!box) return;
-    const L = lzR(); const rows = L.mode === 'title' ? lzTableRows() : [];
+    const L = lzR(); const pm = lzPlotMode(); const rows = L.mode === 'title' || pm ? lzTableRows() : [];   // 18f
     box.hidden = !rows.length; if (!rows.length) return;
     const sg = (v) => `${v >= 0 ? '+' : '−'}${Math.abs(v).toFixed(2)}`;
-    $('lzTable').innerHTML = `<table><tr><th>Shot</th><th>Land Registry</th><th>Measured</th><th>Difference</th></tr>${rows.map((q) => `<tr><td>From ${q.from}${q.via ? ' *' : ''}</td><td>${q.lr.toFixed(2)} m</td><td>${q.measured.toFixed(2)} m</td><td class="${q.mark}">${sg(q.diff)} m</td></tr>`).join('')}</table>`;
+    const src18 = pm ? 'Drawn' : 'Land Registry';
+    $('lzTable').innerHTML = `<table><tr><th>Shot</th><th>${src18}</th><th>Measured</th><th>Difference</th></tr>${rows.map((q) => `<tr><td>From ${q.from}${q.via ? ' *' : ''}</td><td>${q.lr.toFixed(2)} m</td><td>${q.measured.toFixed(2)} m</td><td class="${q.mark}">${sg(q.diff)} m</td></tr>`).join('')}</table>`;
     const S0 = lzTableSum(rows);
     $('lzSum').innerHTML = `${S0.n} shot${S0.n === 1 ? '' : 's'}: ${S0.fine} within 10 cm, ${S0.check} 10–30 cm, ${S0.bigN} over 30 cm. Largest: ${sg(S0.largest.diff)} m from ${S0.largest.from}.`
-      + (S0.titleArea != null && S0.measuredArea != null ? `<br>Area: Land Registry ${S0.titleArea.toFixed(1)} m², measured ${S0.measuredArea.toFixed(1)} m² (${sg(S0.measuredArea - S0.titleArea).replace('.00', '')} m²).` : '')
+      + (S0.titleArea != null && S0.measuredArea != null ? `<br>Area: ${pm ? 'as drawn' : 'Land Registry'} ${S0.titleArea.toFixed(1)} m², measured ${S0.measuredArea.toFixed(1)} m² (${sg(S0.measuredArea - S0.titleArea).replace('.00', '')} m²).` : '')
       + (rows.some((q) => q.via) ? '<br>* measured from elsewhere (something in the way at the corner).' : '');
     T.lzTable = { rows, sum: S0 };
   }
   function lzTableText() {
     const rows = lzTableRows(); const S0 = lzTableSum(rows); if (!S0) return '';
-    const lines = ['Shot\tLand Registry (m)\tMeasured (m)\tDifference (m)'];
+    const src18 = lzPlotMode() ? 'Drawn' : 'Land Registry';   // 18f
+    const lines = [`Shot\t${src18} (m)\tMeasured (m)\tDifference (m)`];
     rows.forEach((q) => lines.push(`From ${q.from}${q.via ? ' (from elsewhere)' : ''}\t${q.lr.toFixed(2)}\t${q.measured.toFixed(2)}\t${q.diff.toFixed(2)}`));
     lines.push(`Largest difference\t\t\t${S0.largest.diff.toFixed(2)}`);
-    if (S0.titleArea != null && S0.measuredArea != null) { lines.push(`Area, Land Registry (m²)\t${S0.titleArea.toFixed(1)}`); lines.push(`Area, measured (m²)\t${S0.measuredArea.toFixed(1)}`); }
+    if (S0.titleArea != null && S0.measuredArea != null) { lines.push(`Area, ${src18 === 'Drawn' ? 'as drawn' : 'Land Registry'} (m²)\t${S0.titleArea.toFixed(1)}`); lines.push(`Area, measured (m²)\t${S0.measuredArea.toFixed(1)}`); }
     return lines.join('\n');
   }
   // the boundary from the measurements: the title's sides moved to the measured points, or the sketch's corners fixed
@@ -15365,6 +15849,13 @@ async function postcodeCentroid(pc){
       let t = lzTitleTrace();
       if (!t) { t = { id: S.nextTraceId++, kind: 'plot', name: `Title ${FM.mine.id}`, pts: [], closed: true, open: false, fromTitle: FM.mine.id }; S.traces.push(t); }
       t.pts = pts.map((q) => ({ x: +q.x.toFixed(3), y: +q.y.toFixed(3) })); t.measuredSides = lines.slice();
+      refresh();
+      return;
+    }
+    if (lzPlotMode()) {   // 18f
+      const R = lzPlotRing(); const t = lzDrawnPlot(); if (!R || !t) return;
+      const fit = lzTitleFit(R, L.shots.filter((s) => s.kind === 'ray'), lzUsed);
+      if (fit.length === t.pts.length) { t.pts = fit.map((q) => ({ x: +q.x.toFixed(3), y: +q.y.toFixed(3) })); t.measuredSides = fit.measured.slice(); }
       refresh();
       return;
     }
@@ -15453,9 +15944,9 @@ async function postcodeCentroid(pc){
     let msg;
     if (!titleHouse()) msg = 'Find the house on the plan first: the measuring starts from its corners.';
     else if (L.mode === 'title' && !(FM.mine && S.mapPin)) msg = 'Find the Land Registry titles and place the house in its title first, or choose Draw my boundary from scratch.';
-    else if (L.mode === 'sketch' && L.sketch.length < 3) msg = T.lzSketching ? `Tap the boundary corners in order round the plot (${L.sketch.length} so far).` : 'Tap Sketch corners, then tap roughly where each boundary corner is, in order round the plot.';
+    else if (L.mode === 'sketch' && L.sketch.length < 3 && (T.lzSketching || !lzPlotMode())) msg = T.lzSketching ? `Tap the boundary corners in order round the plot (${L.sketch.length} so far).` : 'Draw the plot first (pull it from the house wall, trace it, or Sketch it), and its corners are used. Or tap Sketch corners and tap roughly where each boundary corner is.';   // 18f
     else if (!st) msg = cur.steps.length ? `All ${cur.steps.length} shots done.` : 'Nothing to measure from here.';
-    else msg = `Shot ${cur.i + 1} of ${cur.steps.length}: ${lzText(st)}`;
+    else msg = `${lzPlotMode() && cur.i === 0 ? `Checking the plot you drew (${lzPlotCorners()} corners). ` : ''}Shot ${cur.i + 1} of ${cur.steps.length}: ${lzText(st)}`;   // 18f
     if (T.lzCal) msg = T.lzCal === 1 ? 'Calibrate: take a shot with the laser touching a corner.' : 'Calibrate: now the same shot with the laser at your chest.';
     if (T.lzBlock && (!st || st.key !== T.lzBlock.key)) T.lzBlock = null;   // 16a
     if (T.lzBlock) msg = lzBlockText();
@@ -15483,7 +15974,7 @@ async function postcodeCentroid(pc){
     c.save();
     c.font = `700 11px ${FONT}`; c.textAlign = 'center'; c.textBaseline = 'middle';
     O.forEach((p, i) => { const s = w2s(vp, p.x, p.y); c.fillStyle = 'rgba(255,255,255,0.9)'; c.beginPath(); c.arc(s.x, s.y, 8, 0, Math.PI * 2); c.fill(); c.fillStyle = '#1f4fa8'; c.fillText(lzLetter(i), s.x, s.y + 0.5); });
-    if (L.mode === 'sketch') {
+    if (L.mode === 'sketch' && !lzPlotMode()) {   // 18h: corners sketched before, set aside for the plot drawn: not shown
       const fixed = lzFixed();
       L.sketch.forEach((q, k) => { const s = w2s(vp, q.x, q.y); c.strokeStyle = '#1f4fa8'; c.lineWidth = 1.5; c.setLineDash([3, 3]); c.beginPath(); c.arc(s.x, s.y, 9, 0, Math.PI * 2); c.stroke(); c.setLineDash([]); c.fillStyle = '#1f4fa8'; c.fillText(String(k + 1), s.x, s.y - 16);
         if (fixed[k]) { const f = w2s(vp, fixed[k].x, fixed[k].y); c.fillStyle = '#1f7a3a'; c.beginPath(); c.arc(f.x, f.y, 5, 0, Math.PI * 2); c.fill(); } });
@@ -15567,7 +16058,7 @@ async function postcodeCentroid(pc){
   $('btnLzFnInd').addEventListener('click', () => lzSetFunc(10));
   $('lzMode').addEventListener('change', (e) => { pushUndo(); T.lzShow = true; lzS().mode = e.target.value; T.lzPending = null; T.lzSketching = false; save(); syncLaser(); requestRender(); });
   $('btnLzSketch').addEventListener('click', () => { T.lzSketching = !T.lzSketching; T.dimMode = false; T.inspPick = false; if (!T.lzSketching) { lzApply(); save(); } syncLaser(); requestRender(); });
-  $('btnLzSketchClear').addEventListener('click', () => { pushUndo(); const L = lzS(); L.sketch = []; L.shots = L.shots.filter((s) => s.kind === 'ray'); L.skipped = L.skipped.filter((k) => k.startsWith('r:')); save(); syncLaser(); requestRender(); });
+  $('btnLzSketchClear').addEventListener('click', () => { pushUndo(); const L = lzS(); L.sketch = []; L.sketchMine = undefined; L.shots = L.shots.filter((s) => s.kind === 'ray'); L.skipped = L.skipped.filter((k) => k.startsWith('r:')); save(); syncLaser(); requestRender(); });
   $('btnLzAccept').addEventListener('click', () => lzAccept());
   $('btnLzRetake').addEventListener('click', () => { T.lzPending = null; syncLaser(); });
   $('btnLzBlock').addEventListener('click', () => { if (T.lzBlock) lzBlockCancel(); else lzBlockStart(); });   // 16a
@@ -16311,7 +16802,17 @@ async function postcodeCentroid(pc){
     cbRuns() { return (T.cbRuns || []).slice(); },
     joinRound(id) { const t = traceOf(id); if (!t) return false; pushUndo(); const r = joinRound(t); if (r) { refresh(); save(); requestRender(); } return r; },
     slits(id) { return [...slitSides(traceOf(id))]; },
+    plotEdges(id) { const t = traceOf(id); return t ? plotEdgeMask(t.pts, houseOuter()) : null; },
+    plotCorners(id) { const t = traceOf(id); return t ? [...plotCornerSet(t.pts, plotEdgeMask(t.pts, houseOuter()))].sort((a, b) => a - b) : null; },
+    plotBoundaryLength(id) { return plotBoundaryLength(traceOf(id)); },
     lastJoin() { return T.lastJoin || null; },
+    lastSketch() { return T.lastSketch || null; },
+    swingBumps() { return (T.swingBumps || []).slice(); },
+    lastPaste() { return T.lastPaste || null; },
+    lzPlotMode() { return lzPlotMode(); },
+    houseOuter() { const O = houseOuter(); return O ? O.map((q) => ({ x: q.x, y: q.y })) : null; },
+    pickTrace(id) { if (!traceOf(id)) return false; S.selTrace = id; refresh(); requestRender(); return true; },
+    sketchPts(P) { return sketchToTrace(P.map((q) => ({ x: q.x, y: q.y }))) ? { pts: traceOf(S.selTrace).pts.map((q) => ({ ...q })), info: T.lastSketch } : null; },
     angleLabels() { return (T.angleLabels || []).slice(); },
     storeyWalls() { return storeysNow().map((st) => ({ k: st.k, walls: st.walls.slice(), own: st.own, inside: +st.inside.toFixed(2), outside: +st.outside.toFixed(2), inner: st.inner.map((q) => ({ x: q.x, y: q.y })) })); },
     storeyLabels() { const r = cv.getBoundingClientRect(); return (T.wallLabels || []).filter((b) => b.st != null).map((b) => ({ ...b, x: (b.x0 + b.x1) / 2 + r.left, y: (b.y0 + b.y1) / 2 + r.top })); },
