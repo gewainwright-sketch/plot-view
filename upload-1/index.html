@@ -315,7 +315,8 @@ button, input, select { font: inherit; color: inherit; }
 .floor-set { position: absolute; z-index: 6; transform: translate(-50%, -50%); box-shadow: 0 2px 8px rgba(0,0,0,.25); }
 .floor-set[hidden] { display: none; }
 .dim-list { display: flex; flex-direction: column; gap: 3px; font-size: 12.5px; }   /* 05v */
-.lz { display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--line, #d5ddd7); padding-top: 8px; margin-top: 4px; }   /* 15a */
+.lz { display: flex; flex-direction: column; gap: 6px; }
+#laserBox.folded .lz { display: none; }   /* 18i */   /* 15a */
 .lz h4 { margin: 0; font-size: 13px; }
 .lz .lz-row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
 .lz .lz-step { font-size: 13px; line-height: 1.35; padding: 6px 8px; border-radius: 6px; background: rgba(31, 79, 168, 0.08); }
@@ -805,6 +806,32 @@ details.adv[open] > :not(summary) { margin-top: 8px; }
         </div>
         <label id="guidesRow" hidden><input type="checkbox" id="optGuides"> Show the wall and fence lines from the scan (Trace snaps to them)</label>
       </section>
+      <section class="traces" id="laserBox" aria-labelledby="laserHead" hidden>
+        <h2 id="laserHead">Laser measuring</h2>
+        <div class="lz" id="lzPanel" hidden>
+          <div class="lz-row"><button type="button" class="btn" id="btnLzConnect">Connect the laser</button><button type="button" class="btn quiet" id="btnLzFire" disabled title="The laser's own button: first tap aims, second measures">Fire</button><button type="button" class="btn quiet" id="btnLzNow" disabled title="One tap: the laser turns its beam on and measures straight away, wherever it points">Measure now</button><button type="button" class="btn quiet" id="btnLzFind" disabled title="The laser beeps until you stop it here or press any of its buttons">Find the laser</button><span id="lzStatus" class="hint-inline">Not connected</span></div>
+          <div class="lz-info" id="lzInfo" hidden><span class="lz-beam" id="lzBeam">Beam off</span><span class="lz-func" id="lzFunc"></span><span class="lz-fnbtns"><button type="button" class="btn quiet" id="btnLzFnLen">Length</button><button type="button" class="btn quiet" id="btnLzFnInd">Indirect height</button></span><span class="lz-warn" id="lzWarn"></span><span id="lzSerial"></span></div>
+          <details class="lz-set" id="lzSet"><summary>Laser settings</summary>
+            <label><input type="checkbox" id="lzSetBeep"> Beep</label>
+            <label><input type="checkbox" id="lzSetPerm"> Permanent laser (the beam stays on)</label>
+            <label><input type="checkbox" id="lzSetAuto" checked> Reconnect by itself if the laser drops out</label>
+            <label><input type="checkbox" id="lzSetRecBeep" checked> Two beeps on the laser when it reconnects</label>
+            <label><input type="checkbox" id="lzSetFunc" checked> Put the laser on Length when it connects (if it is on a function these shots cannot use)</label>
+            <label><input type="checkbox" id="lzSetSig" checked> Beep signals: 1 short = matches (within 10 cm), 3 short = over 30 cm out, long = last shot done</label>
+            <div class="note" id="lzSetNote">Sent to the laser each time it connects. Units are kept in metres.</div>
+          </details>
+          <label class="lz-row">Measure <select id="lzMode"><option value="title">Check the Land Registry title</option><option value="sketch">Draw my boundary from scratch</option></select></label>
+          <div class="lz-row" id="lzSketchRow"><button type="button" class="btn quiet" id="btnLzSketch">Sketch corners</button><button type="button" class="btn quiet" id="btnLzSketchClear">Clear sketch</button></div>
+          <div class="lz-step" id="lzStep">Place the house first.</div>
+          <div class="lz-read" id="lzRead"></div>
+          <div class="lz-row" id="lzViewRow" hidden><button type="button" class="btn quiet" id="btnLzPrev" title="The shot before: shown green on the plan">&#9664; Shot</button><span class="lz-view" id="lzViewInfo"></span><button type="button" class="btn quiet" id="btnLzNext" title="The next shot taken; after the last, back to the shot to take">Shot &#9654;</button></div>
+          <div class="lz-row"><button type="button" class="btn" id="btnLzAccept" disabled>Accept</button><button type="button" class="btn quiet" id="btnLzRetake" disabled>Retake</button><button type="button" class="btn quiet" id="btnLzSkip">Skip</button><button type="button" class="btn quiet" id="btnLzRev" disabled aria-pressed="false" title="Stand at the red dot on the boundary and aim back at the house corner: the same distance">Stand at the boundary end</button><button type="button" class="btn quiet" id="btnLzBlock" disabled title="Something in the way at the house corner: measure this shot from somewhere else">Blocked? Measure from elsewhere</button></div>
+          <div class="lz-row"><input type="number" id="lzType" step="0.001" min="0" inputmode="decimal" placeholder="metres"><button type="button" class="btn quiet" id="btnLzType">Use typed reading</button></div>
+          <div class="lz-row"><select id="lzHold"><option value="touch">Laser touching the corner</option><option value="chest">Laser held at my chest</option></select><input type="number" id="lzOff" step="1" min="0" max="100" inputmode="numeric" title="How far the laser's back is behind the corner, in cm">cm<button type="button" class="btn quiet" id="btnLzCal">Calibrate</button></div>
+          <div class="lz-list" id="lzList"></div>
+          <div class="lz-table" id="lzTableBox" hidden><h5>Measured against Land Registry</h5><div id="lzTable"></div><div class="lz-sum" id="lzSum"></div><button type="button" class="btn quiet" id="btnLzCopy">Copy the table</button></div>
+        </div>
+      </section>
       <section class="traces" id="freeBox" aria-labelledby="freeHead">
         <h2 id="freeHead">Maps</h2>
         <p class="note" id="freeStatus">Land Registry INSPIRE titles and EA LiDAR for this address, from a map pack made for it. Faint under your plot, never on the export.</p>
@@ -827,29 +854,6 @@ details.adv[open] > :not(summary) { margin-top: 8px; }
           <button type="button" class="btn quiet" id="btnDimAdd" title="Tap one point, then another: the distance across and along the house, and straight">Add a distance</button>
         </div>
         <div class="dim-list" id="dimList"></div>
-        <div class="lz" id="lzPanel" hidden>
-          <h4>Laser measuring</h4>
-          <div class="lz-row"><button type="button" class="btn" id="btnLzConnect">Connect the laser</button><button type="button" class="btn quiet" id="btnLzFire" disabled title="The laser's own button: first tap aims, second measures">Fire</button><button type="button" class="btn quiet" id="btnLzNow" disabled title="One tap: the laser turns its beam on and measures straight away, wherever it points">Measure now</button><button type="button" class="btn quiet" id="btnLzFind" disabled title="The laser beeps until you stop it here or press any of its buttons">Find the laser</button><span id="lzStatus" class="hint-inline">Not connected</span></div>
-          <div class="lz-info" id="lzInfo" hidden><span class="lz-beam" id="lzBeam">Beam off</span><span class="lz-func" id="lzFunc"></span><span class="lz-fnbtns"><button type="button" class="btn quiet" id="btnLzFnLen">Length</button><button type="button" class="btn quiet" id="btnLzFnInd">Indirect height</button></span><span class="lz-warn" id="lzWarn"></span><span id="lzSerial"></span></div>
-          <details class="lz-set" id="lzSet"><summary>Laser settings</summary>
-            <label><input type="checkbox" id="lzSetBeep"> Beep</label>
-            <label><input type="checkbox" id="lzSetPerm"> Permanent laser (the beam stays on)</label>
-            <label><input type="checkbox" id="lzSetAuto" checked> Reconnect by itself if the laser drops out</label>
-            <label><input type="checkbox" id="lzSetRecBeep" checked> Two beeps on the laser when it reconnects</label>
-            <label><input type="checkbox" id="lzSetFunc" checked> Put the laser on Length when it connects (if it is on a function these shots cannot use)</label>
-            <label><input type="checkbox" id="lzSetSig" checked> Beep signals: 1 short = matches (within 10 cm), 3 short = over 30 cm out, long = last shot done</label>
-            <div class="note" id="lzSetNote">Sent to the laser each time it connects. Units are kept in metres.</div>
-          </details>
-          <label class="lz-row">Measure <select id="lzMode"><option value="title">Check the Land Registry title</option><option value="sketch">Draw my boundary from scratch</option></select></label>
-          <div class="lz-row" id="lzSketchRow"><button type="button" class="btn quiet" id="btnLzSketch">Sketch corners</button><button type="button" class="btn quiet" id="btnLzSketchClear">Clear sketch</button></div>
-          <div class="lz-step" id="lzStep">Place the house first.</div>
-          <div class="lz-read" id="lzRead"></div>
-          <div class="lz-row"><button type="button" class="btn" id="btnLzAccept" disabled>Accept</button><button type="button" class="btn quiet" id="btnLzRetake" disabled>Retake</button><button type="button" class="btn quiet" id="btnLzSkip">Skip</button><button type="button" class="btn quiet" id="btnLzRev" disabled aria-pressed="false" title="Stand at the red dot on the boundary and aim back at the house corner: the same distance">Stand at the boundary end</button><button type="button" class="btn quiet" id="btnLzBlock" disabled title="Something in the way at the house corner: measure this shot from somewhere else">Blocked? Measure from elsewhere</button></div>
-          <div class="lz-row"><input type="number" id="lzType" step="0.001" min="0" inputmode="decimal" placeholder="metres"><button type="button" class="btn quiet" id="btnLzType">Use typed reading</button></div>
-          <div class="lz-row"><select id="lzHold"><option value="touch">Laser touching the corner</option><option value="chest">Laser held at my chest</option></select><input type="number" id="lzOff" step="1" min="0" max="100" inputmode="numeric" title="How far the laser's back is behind the corner, in cm">cm<button type="button" class="btn quiet" id="btnLzCal">Calibrate</button></div>
-          <div class="lz-list" id="lzList"></div>
-          <div class="lz-table" id="lzTableBox" hidden><h5>Measured against Land Registry</h5><div id="lzTable"></div><div class="lz-sum" id="lzSum"></div><button type="button" class="btn quiet" id="btnLzCopy">Copy the table</button></div>
-        </div>
         <div class="field" id="compassRow">Top of the plan faces (compass bearing, optional)
           <span style="display:flex;gap:6px;flex-wrap:wrap;align-items:center"><input type="number" id="planTop" min="0" max="360" step="1" inputmode="numeric" placeholder="degrees" style="width:7em">
           <button type="button" class="btn quiet" id="btnCompass">Read the compass</button>
@@ -4465,6 +4469,97 @@ const Core = (() => {
           const useWalls = inWalls >= 0.9 * comp4.length;
           for (const i of comp4) if (useWalls ? fWalls[i] : 1) foot[i] = 1;
         }
+        // 18j: A ROOM THE WALLS' FOOTPRINT LEFT OUT (its own walls drawn thinner than the house's): where the walls'
+        // footprint was taken, a piece of the lines' footprint outside it is put back when it is room-sized (12 wall
+        // half-thicknesses square or more, about 1.2 m) and closed in: the drawing's lines along 95% of its edge (a window across
+        // its mouth, 0873; 0904's stair beside an open void, a dashed line, stays out), the house's walls or the kept floor along 55%. A door's swing is smaller; a bay drawn in thin lines meets the house along
+        // one side only.
+        {
+          const seen6 = new Uint8Array(n); const st6 = []; const piece = []; const minA = (12 * half) * (12 * half);
+          // the kept floors, numbered: a piece must lie against one only (the gutter between two floors is no room)
+          const fl6 = new Int32Array(n); let nf6 = 0;
+          for (let i0 = 0; i0 < n; i0++) {
+            if (!foot[i0] || fl6[i0]) continue;
+            nf6++; fl6[i0] = nf6; st6.push(i0);
+            while (st6.length) { const i = st6.pop(); const x = i % w; for (const j of [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, i >= w ? i - w : -1, i < n - w ? i + w : -1]) if (j >= 0 && foot[j] && !fl6[j]) { fl6[j] = nf6; st6.push(j); } }
+          }
+          const floorsBy = (x, y, S) => { for (let dy = -12; dy <= 12; dy += 3) for (let dx = -12; dx <= 12; dx += 3) { const xx = x + dx; const yy = y + dy; if (xx >= 0 && yy >= 0 && xx < w && yy < h && fl6[yy * w + xx]) S.add(fl6[yy * w + xx]); } };
+          const near = (x, y, A, R = 3) => { for (let dy = -R; dy <= R; dy++) for (let dx = -R; dx <= R; dx++) { const xx = x + dx; const yy = y + dy; if (xx >= 0 && yy >= 0 && xx < w && yy < h && A[yy * w + xx]) return true; } return false; };
+          let added = 0;
+          // the pieces, clear of the kept footprint by 8 pixels (the thin rim the lines' footprint has round it is no room)
+          const cand = new Uint8Array(n);
+          for (let i = 0; i < n; i++) if (fAll[i] && !foot[i]) { const x = i % w; const y = (i - x) / w; if (!near(x, y, foot, 8)) cand[i] = 1; }
+          for (let i0 = 0; i0 < n; i0++) {
+            if (!cand[i0] || seen6[i0]) continue;
+            seen6[i0] = 1; st6.push(i0); piece.length = 0;
+            while (st6.length) {
+              const i = st6.pop(); piece.push(i); const x = i % w;
+              for (const j of [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, i >= w ? i - w : -1, i < n - w ? i + w : -1]) if (j >= 0 && cand[j] && !seen6[j]) { seen6[j] = 1; st6.push(j); }
+            }
+            if (piece.length < minA) continue;
+            let edge = 0; let walled = 0; let lined = 0; const fls = new Set();
+            for (const i of piece) {
+              const x = i % w; const y = (i - x) / w;
+              const onEdge = x === 0 || y === 0 || x === w - 1 || y === h - 1 || !cand[i - 1] || !cand[i + 1] || !cand[i - w] || !cand[i + w];
+              if (!onEdge) continue;
+              edge++; if (near(x, y, thickF, 10) || near(x, y, foot, 10)) { walled++; lined++; } else if (near(x, y, big, 10)) lined++; if ((edge & 3) === 0) floorsBy(x, y, fls);
+            }
+            (globalThis.__rooms18 = globalThis.__rooms18 || []).push([piece.length, edge, +(walled / edge).toFixed(2), +(lined / edge).toFixed(2), piece[0] % w, (piece[0] / w) | 0, fls.size]);
+            if (edge && fls.size === 1 && piece.length >= 2 * half * edge && walled >= 0.55 * edge && lined >= 0.95 * edge) {   // (and room-shaped: not a sliver beside a long line)
+              for (const i of piece) foot[i] = 1;
+              // and the strip between it and the floor
+              for (const i of piece) { const x = i % w; const y = (i - x) / w; if (cand[i - 1] && cand[i + 1] && cand[i - w] && cand[i + w]) continue; for (let dy = -10; dy <= 10; dy++) for (let dx = -10; dx <= 10; dx++) { const xx = x + dx; const yy = y + dy; if (xx >= 0 && yy >= 0 && xx < w && yy < h && fAll[yy * w + xx]) foot[yy * w + xx] = 1; } }
+              added++;
+            }
+          }
+          (globalThis.__roomsBack18 = globalThis.__roomsBack18 || []).push(added);
+          // 18j: A ROOM OPEN TO THE OUTSIDE through a wide opening the join does not close (0835: a lounge and dining area
+          // behind bifold doors drawn open at an angle, kept in by chance by a "Ceiling Height" box under them): the
+          // drawing's lines joined over a wider reach (1.6 times), and any room-sized piece that then holds put back when
+          // walls or the floor run along 70% of its edge and ink (a door's leaves, a window) along 90%: a valley between two
+          // wings has no ink across its mouth
+          const rr = Math.round(1.6 * r);
+          const passR = (src, alongRows, grow) => {
+            const dst = new Uint8Array(n3); const L = alongRows ? W3 : H3; const lines = alongRows ? H3 : W3; const pre = new Int32Array(L + 1);
+            for (let k = 0; k < lines; k++) {
+              for (let t = 0; t < L; t++) pre[t + 1] = pre[t] + src[alongRows ? k * W3 + t : t * W3 + k];
+              for (let t = 0; t < L; t++) { const lo = Math.max(0, t - rr); const hi = Math.min(L, t + rr + 1); const cnt = pre[hi] - pre[lo]; if (grow ? cnt > 0 : cnt === hi - lo) dst[alongRows ? k * W3 + t : t * W3 + k] = 1; }
+            }
+            return dst;
+          };
+          let m = new Uint8Array(n3);
+          for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const i = y * w + x; if (thickF[i] || big[i] || brA[i] || foot[i]) m[(y + Q) * W3 + x + Q] = 1; }
+          m = passR(passR(m, true, true), false, true);
+          const outside = new Uint8Array(n3); const st2 = [];
+          const push2 = (i) => { if (!m[i] && !outside[i]) { outside[i] = 1; st2.push(i); } };
+          for (let x = 0; x < W3; x++) { push2(x); push2((H3 - 1) * W3 + x); }
+          for (let y = 0; y < H3; y++) { push2(y * W3); push2(y * W3 + W3 - 1); }
+          while (st2.length) { const i = st2.pop(); const x = i % W3; if (x > 0) push2(i - 1); if (x < W3 - 1) push2(i + 1); if (i >= W3) push2(i - W3); if (i < n3 - W3) push2(i + W3); }
+          for (let i = 0; i < n3; i++) m[i] = outside[i] ? 0 : 1;
+          m = passR(passR(m, true, false), false, false);
+          const cand2 = new Uint8Array(n); const seen7 = new Uint8Array(n);
+          for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const i = y * w + x; if (m[(y + Q) * W3 + x + Q] && !foot[i] && !near(x, y, foot, 8)) cand2[i] = 1; }
+          let added2 = 0;
+          for (let i0 = 0; i0 < n; i0++) {
+            if (!cand2[i0] || seen7[i0]) continue;
+            seen7[i0] = 1; st6.push(i0); piece.length = 0;
+            while (st6.length) { const i = st6.pop(); piece.push(i); const x = i % w; for (const j of [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, i >= w ? i - w : -1, i < n - w ? i + w : -1]) if (j >= 0 && cand2[j] && !seen7[j]) { seen7[j] = 1; st6.push(j); } }
+            if (piece.length < minA) continue;
+            let edge = 0; let walled = 0; let lined = 0; const fls = new Set();
+            for (const i of piece) {
+              const x = i % w; const y = (i - x) / w;
+              if (!(x === 0 || y === 0 || x === w - 1 || y === h - 1 || !cand2[i - 1] || !cand2[i + 1] || !cand2[i - w] || !cand2[i + w])) continue;
+              edge++; if (near(x, y, thickF, 10) || near(x, y, foot, 10)) { walled++; lined++; } else if (near(x, y, dark, 10)) lined++; if ((edge & 3) === 0) floorsBy(x, y, fls);
+            }
+            (globalThis.__rooms18 = globalThis.__rooms18 || []).push(['wide', piece.length, edge, +(walled / edge).toFixed(2), +(lined / edge).toFixed(2), piece[0] % w, (piece[0] / w) | 0, fls.size]);
+            if (edge && fls.size === 1 && piece.length >= 2 * half * edge && walled >= 0.7 * edge && lined >= 0.9 * edge) {
+              for (const i of piece) foot[i] = 1;
+              for (const i of piece) { const x = i % w; const y = (i - x) / w; if (cand2[i - 1] && cand2[i + 1] && cand2[i - w] && cand2[i + w]) continue; for (let dy = -10; dy <= 10; dy++) for (let dx = -10; dx <= 10; dx++) { const xx = x + dx; const yy = y + dy; if (xx >= 0 && yy >= 0 && xx < w && yy < h && m[(yy + Q) * W3 + xx + Q]) foot[yy * w + xx] = 1; } }
+              added2++;
+            }
+          }
+          (globalThis.__roomsBack18 = globalThis.__roomsBack18 || []).push(added2);
+        }
       }
       // 05s: A FOOTPRINT HOLDING TWO FLOORS is split where a band of rows (or columns) right across it has no wall or
       // drawing line in it: the gutter between two floors, crossed only by the join and the title's thin strokes. Each
@@ -5143,7 +5238,7 @@ const EMBEDDED_PLAN = null;
 <script id="ui">
 (() => {
   'use strict';
-  const BUILD = '2026-10-18h';
+  const BUILD = '2026-10-18j';
   const $ = (id) => document.getElementById(id);
   const mapEl = $('map');
   // 05u: Set, inside a lifted floor once it is let go
@@ -5310,6 +5405,51 @@ const EMBEDDED_PLAN = null;
     }
     return out;
   }
+  // 18j: A LABEL IN A BOX (George's Batch 4: newer PlanUp sheets put "Ceiling Height = 2.65" in a thin box under each
+  // room, and the line went round the box as if it were the house: 7 sheets). A thin-lined box on its own (touching
+  // no other ink), at least 2.2 times as wide as tall, its four sides drawn, with only small marks inside it (the
+  // letters: four or more, none over 80% of its height or 60% of its width) is taken off the drawing the walls are
+  // found from, with its letters.
+  function labelBoxesOff(lum, w, h) {
+    const n = w * h; const lab = new Int32Array(n); const dark = (i) => lum[i] < 128;
+    const comps = []; const stack = new Int32Array(n);
+    for (let i0 = 0; i0 < n; i0++) {
+      if (lab[i0] || !dark(i0)) continue;
+      const id = comps.length + 1; let sp = 0; stack[sp++] = i0; lab[i0] = id;
+      let x0 = w; let y0 = h; let x1 = -1; let y1 = -1; let cnt = 0;
+      while (sp) {
+        const i = stack[--sp]; const x = i % w; const y = (i - x) / w; cnt++;
+        if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+        if (x > 0 && !lab[i - 1] && dark(i - 1)) { lab[i - 1] = id; stack[sp++] = i - 1; }
+        if (x < w - 1 && !lab[i + 1] && dark(i + 1)) { lab[i + 1] = id; stack[sp++] = i + 1; }
+        if (y > 0 && !lab[i - w] && dark(i - w)) { lab[i - w] = id; stack[sp++] = i - w; }
+        if (y < h - 1 && !lab[i + w] && dark(i + w)) { lab[i + w] = id; stack[sp++] = i + w; }
+      }
+      comps.push({ id, x0, y0, x1, y1, cnt });
+    }
+    const out = lum.slice(); let boxes = 0; T.labelBoxes18 = [];
+    for (const c of comps) {
+      const bw = c.x1 - c.x0 + 1; const bh = c.y1 - c.y0 + 1;
+      if (bw < 40 || bh < 12 || bw / bh < 2.2 || bh > 0.12 * Math.min(w, h)) continue;
+      if (c.cnt > 2 * (bw + bh) * 4) continue;   // a thin outline, not a filled shape
+      // its four sides drawn (by this or another piece of thin ink: a box's corner can leave a gap), every piece of ink
+      // on them inside the box's own bounds (nothing joining it to the walls)
+      const sl18 = Math.max(4, Math.round(0.25 * bh));   // a corner's anti-aliasing can leave the box in pieces a few pixels apart
+      const band = new Set(); const cov = (pts) => { let k = 0; for (const [x, y, ox, oy] of pts) { let hit = false; for (let o = -sl18; o < 3; o++) { const xx = x + ox * o; const yy = y + oy * o; if (xx >= 0 && yy >= 0 && xx < w && yy < h && dark(yy * w + xx)) { hit = true; band.add(lab[yy * w + xx]); } } if (hit) k++; } return k / pts.length; };
+      const row = (y, oy) => { const a = []; for (let x = c.x0; x <= c.x1; x++) a.push([x, y, 0, oy]); return a; };
+      const col = (x, ox) => { const a = []; for (let y = c.y0; y <= c.y1; y++) a.push([x, y, ox, 0]); return a; };
+      if (cov(row(c.y0, 1)) < 0.85 || cov(row(c.y1, -1)) < 0.85 || cov(col(c.x0, 1)) < 0.85 || cov(col(c.x1, -1)) < 0.85) continue;
+      const byId = (id) => comps[id - 1];
+      if ([...band].some((id) => { const d = byId(id); return d.x0 < c.x0 - sl18 || d.y0 < c.y0 - sl18 || d.x1 > c.x1 + sl18 || d.y1 > c.y1 + sl18; })) continue;
+      // inside: only small marks, four or more
+      const inner = comps.filter((d) => d.id !== c.id && !band.has(d.id) && d.x0 > c.x0 + 1 && d.x1 < c.x1 - 1 && d.y0 > c.y0 + 1 && d.y1 < c.y1 - 1);
+      if (inner.length < 4 || inner.some((d) => d.y1 - d.y0 + 1 > 0.8 * bh || d.x1 - d.x0 + 1 > 0.6 * bw)) continue;
+      const ids = new Set([c.id, ...band, ...inner.map((d) => d.id)]);
+      for (let y = Math.max(0, c.y0 - sl18); y <= Math.min(h - 1, c.y1 + sl18); y++) for (let x = Math.max(0, c.x0 - sl18); x <= Math.min(w - 1, c.x1 + sl18); x++) { const i = y * w + x; if (ids.has(lab[i])) out[i] = 255; }
+      boxes++; T.labelBoxes18.push({ x: c.x0, y: c.y0, w: bw, h: bh, marks: inner.length });
+    }
+    return boxes ? out : lum;
+  }
   function makeSource(img, name, dataUrl) {
     let w = img.naturalWidth || img.width;
     let h = img.naturalHeight || img.height;
@@ -5326,6 +5466,7 @@ const EMBEDDED_PLAN = null;
     let lum = new Uint8Array(w * h);
     for (let i = 0, j = 0; i < lum.length; i++, j += 4) lum[i] = (px[j] * 299 + px[j + 1] * 587 + px[j + 2] * 114) / 1000;
     lum = unHighlight(px, lum, w, h);   // 05q: a selection highlight over the plan's lines, read as the line under its middle
+    lum = labelBoxesOff(lum, w, h);   // 18j: "Ceiling Height" boxes and the like, off before the floors are found
     // the drawing only: floor titles, areas, the address and the small print taken off (room names stay)
     let clean = Core.planTitlesOff(lum, w, h, { floors: true });
     // a screenshot from floor plan software (not a white sheet) is cut to its plan first (03a): the floors found,
@@ -5471,6 +5612,7 @@ const EMBEDDED_PLAN = null;
     if (!isLoupe && S.src && S.show.storeys && S.show.storeys.length) drawStoreys(c, vp);   // 18b
     if (!isLoupe && S.src) drawTitleExtras(c, vp);   // 05v
     if (!isLoupe) drawCornerVecs(c, vp);   // 05t
+    if (!isLoupe) drawHouseLengths(c, vp);   // 18j
     if (!isLoupe) { drawAngles(c, vp); drawPull(c, vp); drawMeSides(c, vp); drawMe(c, vp); drawWrapPreview(c, vp); drawSketch(c, vp); }   // 18b: the wrap; 18e: the sketch
     if (!isLoupe && T.dragNote) { const N = T.dragNote; const A = w2s(vp, N.a.x, N.a.y); const B = w2s(vp, N.b.x, N.b.y); c.save(); pinLabel(c, (A.x + B.x) / 2, (A.y + B.y) / 2 - 26, `${N.d >= 0 ? '+' : '−'}${Math.abs(N.d).toFixed(2)} m${N.face ? ', ' + N.face : ''}`, 0, 0); c.restore(); }
     if (!isLoupe && T.faceNote) { const F = w2s(vp, T.faceNote.x, T.faceNote.y); c.save(); pinLabel(c, F.x, F.y - 30, T.faceNote.face, 0, 0); c.restore(); }   // 05o
@@ -5583,6 +5725,15 @@ const EMBEDDED_PLAN = null;
     c.setTransform(dpr * k, 0, 0, dpr * k, dpr * e, dpr * f);
     c.imageSmoothingEnabled = k < 2.5;
     c.imageSmoothingQuality = 'high';
+    // 18j: once the house is found, only the plan inside it (its outside wall face and 4 cm more for sills; 20 cm let the small print just under a wall show, George's image 22 Oct)
+    // is drawn: the titles, address and small print round it went on the map (George: "remove all of background on
+    // outside of it"). The plot's colour is then the same with the plan shown or the house shown as a building.
+    const hs18 = S.traces.filter((t) => t.kind === 'house' && t.closed && !t.open && outerOf(t));
+    if (hs18.length && !T.planWhole) {
+      c.save(); c.setTransform(dpr, 0, 0, dpr, 0, 0); c.beginPath();
+      for (const t of hs18) { const R = Core.offsetPolygon(t.pts, wallsOf(t).map((w) => w + 0.04)); R.forEach((q, i) => { const s = w2s(vp, q.x, q.y); if (i) c.lineTo(s.x, s.y); else c.moveTo(s.x, s.y); }); c.closePath(); }
+      c.restore(); c.clip();
+    }
     c.drawImage(ink, r.u0, r.v0, r.u1 - r.u0, r.v1 - r.v0, r.u0, r.v0, r.u1 - r.u0, r.v1 - r.v0);
     c.restore();
   }
@@ -7620,6 +7771,42 @@ const EMBEDDED_PLAN = null;
     const run = (i) => { let k = i; let len = 0; for (let g = 0; g < n; g++) { const e = (k + 1) % n; len += Math.hypot(P[e].x - P[k].x, P[e].y - P[k].y); if (cs.has(e)) return { end: e, len }; let m = -1; for (let s2 = 1; s2 <= n; s2++) { const c = (k + s2) % n; if (mk[c]) { m = c; break; } } if (m < 0 || m === i) return { end: e, len }; k = m; } return { end: (i + 1) % n, len }; };
     return { mk, cs, run };
   }
+  // 18i: a line through a house: any point along it (every 10 cm) inside the house more than 3 cm from its walls
+  function throughHouse(p, q, Os) {
+    const L = Math.hypot(q.x - p.x, q.y - p.y); const nS = Math.max(2, Math.ceil(L / 0.1));
+    const edge = (O, x, y) => { let m = Infinity; for (let k = 0; k < O.length; k++) { const a = O[k]; const b = O[(k + 1) % O.length]; const dx = b.x - a.x; const dy = b.y - a.y; const L2 = dx * dx + dy * dy; if (L2 < 1e-12) continue; const s = Math.max(0, Math.min(1, ((x - a.x) * dx + (y - a.y) * dy) / L2)); m = Math.min(m, Math.hypot(a.x + dx * s - x, a.y + dy * s - y)); } return m; };
+    for (const O of Os) { if (!O || O.length < 3) continue; for (let k = 1; k < nS; k++) { const s = k / nS; const x = p.x + (q.x - p.x) * s; const y = p.y + (q.y - p.y) * s; if (Core.insidePolygon(x, y, O) && edge(O, x, y) > 0.03) return true; } }
+    return false;
+  }
+  function houseCornersReal(O) { const n = O.length; const out = []; for (let i = 0; i < n; i++) { const a = O[(i + n - 1) % n]; const b = O[(i + 1) % n]; if (Math.hypot(O[i].x - a.x, O[i].y - a.y) >= 0.5 && Math.hypot(O[i].x - b.x, O[i].y - b.y) >= 0.5) out.push(i); } return out; }
+  // 18i: each corner of the plot: one diagonal, from the house corner nearest it that sees it (George: "only one diagonal
+  // measurement to nearest building corner")
+  function plotNearest(P, cs, Os) {
+    const order = [...cs].sort((a, b) => a - b); const out = [];
+    order.forEach((v, k) => {
+      const q = P[v]; let best = null;
+      Os.forEach((O, h2) => { if (!O) return; for (const i of houseCornersReal(O)) { const p = O[i]; const d = Math.hypot(q.x - p.x, q.y - p.y); if (d > 0.05 && (!best || d < best.d) && !throughHouse(p, q, Os)) best = { h: h2, i, d, p }; } });
+      if (best) out.push({ v, pc: k + 1, h: best.h, i: best.i, d: best.d, from: { x: best.p.x, y: best.p.y }, to: { x: q.x, y: q.y } });
+    });
+    return out;
+  }
+  // 18i: a point added on a side of the plot (double-click): square from the house wall out to it, the nearest such
+  // (George: "when double clicking line on plot shape to create vector add purple dashed measurement away from building")
+  function plotVecSquares(P, Os, mk, cs) {
+    const out = []; const n = P.length;
+    P.forEach((q, v) => {
+      // marked when added, or any point on a straight run of the outer edge (one added before 18i)
+      if (!q || !(q.vec || (mk && cs && !cs.has(v) && mk[v] && mk[(v - 1 + n) % n]))) return; let best = null;
+      for (const O of Os) { if (!O || O.length < 3 || Core.insidePolygon(q.x, q.y, O)) continue;
+        for (let k = 0; k < O.length; k++) { const a = O[k]; const b = O[(k + 1) % O.length]; const dx = b.x - a.x; const dy = b.y - a.y; const L2 = dx * dx + dy * dy; if (L2 < 1e-6) continue;
+          const s = ((q.x - a.x) * dx + (q.y - a.y) * dy) / L2; if (s <= 0.01 || s >= 0.99) continue;
+          const f = { x: a.x + dx * s, y: a.y + dy * s }; const d = Math.hypot(q.x - f.x, q.y - f.y); if (d < 0.05) continue;
+          if (Core.insidePolygon(f.x + (q.x - f.x) * (0.05 / d), f.y + (q.y - f.y) * (0.05 / d), O)) continue;   // out from the wall's outside face
+          if ((!best || d < best.d) && !throughHouse(f, q, Os)) best = { v, d, from: f, to: { x: q.x, y: q.y } }; } }
+      if (best) out.push(best);
+    });
+    return out;
+  }
   function plotBoundaryLength(t) {
     if (!t || t.kind !== 'plot' || !t.closed || t.open || t.pts.length < 3) return null;
     const mk = plotEdgeMask(t.pts, houseOuter()); let L = 0;
@@ -8032,6 +8219,28 @@ const EMBEDDED_PLAN = null;
     return { area: A0 - A1, what: hit.length > 1 ? 'buildings' : hit[0].what };
   }
   // 05t: from the picked plot's corners near a building, the way to the nearest building corner: across, then along
+  // 18j: THE BUILDING'S LINES MEASURED (George: "add building plot line measurements"): with the house or a plot picked,
+  // each side of the house's outside wall face, its length, outside it
+  function drawHouseLengths(c, vp) {
+    T.houseLengths = [];
+    const sel = traceOf(S.selTrace); if (!sel || !(sel.kind === 'house' || sel.kind === 'plot' || sel.kind === 'boundary')) return;
+    const hs = S.traces.filter((t) => t.kind === 'house' && outerOf(t)); if (!hs.length) return;
+    c.save(); c.font = `600 11px ${FONT}`; c.textAlign = 'center'; c.textBaseline = 'middle';
+    for (const t of hs) {
+      const O = outerOf(t); const n = O.length; let a2 = 0; for (let i = 0; i < n; i++) a2 += O[i].x * O[(i + 1) % n].y - O[(i + 1) % n].x * O[i].y;
+      for (let i = 0; i < n; i++) {
+        const a = O[i]; const b = O[(i + 1) % n]; const L = Math.hypot(b.x - a.x, b.y - a.y); if (L < 0.3) continue;
+        const ox = (a2 > 0 ? 1 : -1) * (b.y - a.y) / L; const oy = (a2 > 0 ? -1 : 1) * (b.x - a.x) / L;   // outward
+        const A = w2s(vp, a.x, a.y); const B = w2s(vp, b.x, b.y); if (Math.hypot(B.x - A.x, B.y - A.y) < 34) continue;
+        const M = w2s(vp, (a.x + b.x) / 2 + ox * (14 / vp.zoom), (a.y + b.y) / 2 + oy * (14 / vp.zoom));
+        const tx = Core.fmtM(L); const tw = c.measureText(tx).width + 8;
+        c.fillStyle = 'rgba(255,255,255,0.92)'; c.fillRect(M.x - tw / 2, M.y - 8, tw, 16); c.strokeStyle = '#7a5c2e'; c.lineWidth = 1; c.strokeRect(M.x - tw / 2, M.y - 8, tw, 16);
+        c.fillStyle = '#4e3b2a'; c.fillText(tx, M.x, M.y + 0.5);
+        T.houseLengths.push({ id: t.id, i, d: +L.toFixed(3) });
+      }
+    }
+    c.restore();
+  }
   function drawCornerVecs(c, vp) {
     T.cornerVecs = [];
     const t = traceOf(S.selTrace);
@@ -8043,11 +8252,11 @@ const EMBEDDED_PLAN = null;
     { const houses = S.traces.filter((o) => o !== t && outerOf(o));
       if (houses.length) {
         const P = t.pts; const lab = (x, y, s) => { c.save(); c.font = `600 11px ${FONT}`; const tw = c.measureText(s).width + 8; c.fillStyle = '#ffffff'; c.fillRect(x - tw / 2, y - 9, tw, 18); c.strokeStyle = '#7c3aed'; c.lineWidth = 1; c.strokeRect(x - tw / 2, y - 9, tw, 18); c.fillStyle = '#5b21b6'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(s, x, y + 0.5); c.restore(); };
+        const Os = houses.map((o) => outerOf(o));
+        const pmk = plotEdgeMask(P, houseOuter() || Os[0]); const pcs = plotCornerSet(P, pmk);   // 18h: the plot's outer edge and its corners
         c.save(); c.setLineDash([5, 4]); c.strokeStyle = '#7c3aed'; c.lineWidth = 1.5;
-        for (const o of houses) {
-          const O = outerOf(o); const n = O.length;
-          const sees = (p, q) => { for (let k = 1; k < 10; k++) { const s = k / 10; if (Core.insidePolygon(p.x + (q.x - p.x) * s, p.y + (q.y - p.y) * s, O)) return false; } return true; };
-          const pmk = plotEdgeMask(P, O); const pcs = plotCornerSet(P, pmk);   // 18h: the plot's outer edge and its corners
+        Os.forEach((O) => {
+          const n = O.length;
           for (let i = 0; i < n; i++) {
             const p = O[i]; const a = O[(i + n - 1) % n]; const b0 = O[(i + 1) % n];
             const L1 = Math.hypot(p.x - a.x, p.y - a.y); const L2 = Math.hypot(b0.x - p.x, b0.y - p.y); if (L1 < 1e-6 || L2 < 1e-6) continue;
@@ -8058,21 +8267,29 @@ const EMBEDDED_PLAN = null;
               for (let k = 0; k < P.length; k++) { if (!pmk[k]) continue; const s0 = P[k]; const s1 = P[(k + 1) % P.length]; const ex = s1.x - s0.x; const ey = s1.y - s0.y; const den = d.x * ey - d.y * ex; if (Math.abs(den) < 1e-9) continue;
                 const tt = ((s0.x - p.x) * ey - (s0.y - p.y) * ex) / den; const ss = ((s0.x - p.x) * d.y - (s0.y - p.y) * d.x) / den; if (tt > 0.02 && ss >= -1e-9 && ss <= 1 + 1e-9 && (!best || tt < best)) best = tt; }
               if (best == null || best > 80) continue;
-              const q = { x: p.x + d.x * best, y: p.y + d.y * best }; const A = w2s(vp, p.x, p.y); const B = w2s(vp, q.x, q.y);
+              const q = { x: p.x + d.x * best, y: p.y + d.y * best };
               if (lzAlongRing(P, p, q, pmk)) continue;   // along the plot's own side (a plot pulled square off the wall): nothing to show
+              if (throughHouse(p, q, Os)) continue;   // 18i: never through the house
+              const A = w2s(vp, p.x, p.y); const B = w2s(vp, q.x, q.y);
               c.beginPath(); c.moveTo(A.x, A.y); c.lineTo(B.x, B.y); c.stroke();
               if (Math.hypot(B.x - A.x, B.y - A.y) > 26) lab((A.x + B.x) / 2, (A.y + B.y) / 2, Core.fmtM(best));
-              T.cornerVecs.push({ kind: 'square', corner: i, d: +best.toFixed(3), dir: { x: +d.x.toFixed(4), y: +d.y.toFixed(4) } });
-            }
-            if (L1 < 0.5 || L2 < 0.5) continue;   // a step in the wall: no nearest-corner line from it
-            let nb = null; P.forEach((q, v) => { if (!pcs.has(v)) return; const dd = Math.hypot(q.x - p.x, q.y - p.y); if (dd > 0.05 && sees(p, q) && (!nb || dd < nb.d)) nb = { d: dd, q, v }; });
-            if (nb) {
-              const A = w2s(vp, p.x, p.y); const B = w2s(vp, nb.q.x, nb.q.y);
-              c.save(); c.setLineDash([2, 4]); c.beginPath(); c.moveTo(A.x, A.y); c.lineTo(B.x, B.y); c.stroke(); c.restore();
-              if (Math.hypot(B.x - A.x, B.y - A.y) > 26) lab(A.x + (B.x - A.x) * 0.7, A.y + (B.y - A.y) * 0.7, Core.fmtM(nb.d));   // further along than the square ones' labels
-              T.cornerVecs.push({ kind: 'nearest', corner: i, v: nb.v, d: +nb.d.toFixed(3) });
+              T.cornerVecs.push({ kind: 'square', corner: i, d: +best.toFixed(3), dir: { x: +d.x.toFixed(4), y: +d.y.toFixed(4) }, from: { x: p.x, y: p.y }, to: q });
             }
           }
+        });
+        // 18i: each plot corner, one diagonal from the house corner nearest it
+        for (const nv of plotNearest(P, pcs, Os)) {
+          const A = w2s(vp, nv.from.x, nv.from.y); const B = w2s(vp, nv.to.x, nv.to.y);
+          c.save(); c.setLineDash([2, 4]); c.beginPath(); c.moveTo(A.x, A.y); c.lineTo(B.x, B.y); c.stroke(); c.restore();
+          if (Math.hypot(B.x - A.x, B.y - A.y) > 26) lab(A.x + (B.x - A.x) * 0.7, A.y + (B.y - A.y) * 0.7, Core.fmtM(nv.d));
+          T.cornerVecs.push({ kind: 'nearest', corner: nv.i, house: nv.h, v: nv.v, pc: nv.pc, d: +nv.d.toFixed(3), from: nv.from, to: nv.to });
+        }
+        // 18i: a point added on a side: square from the wall out to it
+        for (const sv of plotVecSquares(P, Os, pmk, pcs)) {
+          const A = w2s(vp, sv.from.x, sv.from.y); const B = w2s(vp, sv.to.x, sv.to.y);
+          c.beginPath(); c.moveTo(A.x, A.y); c.lineTo(B.x, B.y); c.stroke();
+          if (Math.hypot(B.x - A.x, B.y - A.y) > 26) lab((A.x + B.x) / 2, (A.y + B.y) / 2, Core.fmtM(sv.d));
+          T.cornerVecs.push({ kind: 'vec', v: sv.v, d: +sv.d.toFixed(3), from: sv.from, to: sv.to });
         }
         c.restore();
         return;
@@ -8837,6 +9054,18 @@ const EMBEDDED_PLAN = null;
     return removed;
   }
   // A point added on side i of a trace where the pointer is, on the line (03d)
+  function removePlotPoint(t, i) {   // 18i
+    if (!t || !t.closed || t.open || !(t.kind === 'plot' || t.kind === 'boundary') || t.pts.length <= 3) return false;
+    const n = t.pts.length; const sl = slitSides(t); if (sl.has(i) || sl.has((i - 1 + n) % n)) return false;   // a join's end stays
+    pushUndo();
+    const was = segsOf(t, Array.isArray(t.sides) ? t.sides : []);
+    t.pts.splice(i, 1);
+    if (Array.isArray(t.img) && t.img.length === n) t.img.splice(i, 1);
+    if (Array.isArray(t.walls) && t.walls.length === n) t.walls.splice(i, 1);
+    if (Array.isArray(t.sides)) t.sides = carrySides(t.pts, was);
+    toast('Point taken off. Undo puts it back.');
+    return true;
+  }
   function addPointOnSide(t, i, m) {
     const n = t.pts.length;
     const a = t.pts[i];
@@ -8846,7 +9075,7 @@ const EMBEDDED_PLAN = null;
     const L2 = dx * dx + dy * dy;
     if (L2 < 1e-9) return false;
     const s = Math.max(0.02, Math.min(0.98, ((m.x - a.x) * dx + (m.y - a.y) * dy) / L2));
-    const q = { x: a.x + dx * s, y: a.y + dy * s };
+    const q = { x: a.x + dx * s, y: a.y + dy * s, vec: 1 };   // 18i: added by hand: a square distance to it from the house
     pushUndo();
     const hasImg = Array.isArray(t.img) && t.img.length === n;
     const hasWalls = Array.isArray(t.walls) && t.walls.length === n;
@@ -8896,7 +9125,7 @@ const EMBEDDED_PLAN = null;
       let q = snapDragged(t, g.hit.i, s2w(vp, pt.x, pt.y));
       g.face = T.faceNote ? T.faceNote.face : null; g.facePt = { x: q.x, y: q.y };   // 05t: where the point was let go, for the cut round buildings
       if (t.pinned && g.att && g.att[g.hit.i]) { const f = pinFoot(t, s2w(vp, pt.x, pt.y)); if (f) q = { x: f.x, y: f.y }; }
-      t.pts[g.hit.i] = { x: q.x, y: q.y };
+      t.pts[g.hit.i] = t.pts[g.hit.i] && t.pts[g.hit.i].vec ? { x: q.x, y: q.y, vec: 1 } : { x: q.x, y: q.y };   // 18i: keeps its mark
       if (t.img) t.img[g.hit.i] = q.img || Core.worldToImg(S.plan, q.x, q.y);
     } else if (g.sd) {
       const a = s2w(vp, g.start.x, g.start.y);
@@ -8965,7 +9194,7 @@ const EMBEDDED_PLAN = null;
       c.stroke();
       c.restore();
     };
-    for (const t of S.traces) if (t.kind === 'plot' && t.closed && !t.open) ring(t.pts, 'rgba(188,208,234,0.35)', 'rgba(31,63,122,0.6)');
+    // 18j: the plots not tinted here (they are drawn as ever over it): only the building changes
     for (const t of S.traces) { const o = outerOf(t); if (o && t.kind === 'house') ring(o, '#bcd0ea', '#1f3f7a'); }
   }
   // 05p: the house as a building, in the Plot screen's colours for George's house
@@ -10759,14 +10988,51 @@ const EMBEDDED_PLAN = null;
     const tol = Math.max(3, 0.03 * ppm);
     let pts = P0.map((q) => ({ u: q.u, v: q.v }));
     T.swingBumps = [];
+    // 18j: A DOOR DRAWN OPEN AT A CORNER (George's Batch 4: doors in a recess or at a corner, the line went round them):
+    // the sides either side square to each other; the bump between them, cut to where their lines meet, when nothing
+    // in it is wall-thick, its own outline mostly runs over paper (a porch's is drawn all round) and some thin drawing
+    // is in it (the leaves, their arcs). Each leg 0.3 to 3.2 m.
+    const cornerDoor = (s, k, pa, A, B, nb) => {
+      const n = pts.length;
+      const d1 = { u: A.u - pa.u, v: A.v - pa.v }; const d2 = { u: nb.u - B.u, v: nb.v - B.v };
+      const L1 = Math.hypot(d1.u, d1.v); const L2 = Math.hypot(d2.u, d2.v); if (L1 < 1 || L2 < 1) return null;
+      if (Math.abs((d1.u * d2.u + d1.v * d2.v) / (L1 * L2)) > 0.08) return null;
+      const den = d1.u * d2.v - d1.v * d2.u; if (Math.abs(den) < 1e-9) return null;
+      const t = ((B.u - pa.u) * d2.v - (B.v - pa.v) * d2.u) / den; const C = { u: pa.u + d1.u * t, v: pa.v + d1.v * t };
+      const la = Math.hypot(C.u - A.u, C.v - A.v); const lb = Math.hypot(C.u - B.u, C.v - B.v);
+      if (la > 3.2 * ppm || lb > 3.2 * ppm || la + lb < 0.3 * ppm) return null;
+      if (lineDist(A, pa, C) > tol || lineDist(B, nb, C) > tol) return null;
+      const inner = []; for (let j = 0; j <= k; j++) inner.push(pts[(s + j) % n]);
+      const keep = []; for (let i = 0; i < n; i++) { let inB = false; for (let j = 0; j <= k; j++) if (i === (s + j) % n) inB = true; if (i === s) keep.push(C); else if (!inB) keep.push(pts[i]); }
+      if (Math.abs(area2(keep)) >= Math.abs(area2(pts))) return null;   // outward only
+      const poly = inner.concat([C]);
+      const depth = Math.max(...inner.map((p) => Math.min(lineDist(p, pa, C), lineDist(p, nb, C))));
+      if (depth > 1.6 * ppm) return null;
+      // nothing wall-thick inside, some thin ink: on a grid over the bump
+      let u0 = Infinity; let v0 = Infinity; let u1 = -Infinity; let v1 = -Infinity; for (const p of poly) { u0 = Math.min(u0, p.u); v0 = Math.min(v0, p.v); u1 = Math.max(u1, p.u); v1 = Math.max(v1, p.v); }
+      const inside = (x, y) => { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const a = poly[i]; const b = poly[j]; if ((a.v > y) !== (b.v > y) && x < ((b.u - a.u) * (y - a.v)) / (b.v - a.v) + a.u) c = !c; } return c; };
+      let ink = 0; let thickHit = false;
+      for (let y = v0 + 3; y < v1 - 2 && !thickHit; y += 3) { let run = 0; for (let x = u0 + 3; x < u1 - 2; x++) { if (!inside(x, y)) { run = 0; continue; } if (dk(x, y)) { run++; if (run >= thickRunPx) { thickHit = true; break; } if (x % 3 === 0) ink++; } else run = 0; } }
+      if (thickHit || ink < 3) return null;
+      // its own outline (A to B the long way) mostly over paper
+      let on = 0; let oc = 0;
+      for (let j = 0; j < inner.length - 1; j++) { const a = inner[j]; const b = inner[j + 1]; const L = Math.hypot(b.u - a.u, b.v - a.v); for (let q = 3; q < L - 3; q += 3) { oc++; if (dk2(a.u + ((b.u - a.u) * q) / L, a.v + ((b.v - a.v) * q) / L)) on++; } }
+      if (!oc || on / oc > 0.4) return null;
+      T.swingBumps.push({ corner: true, legs: [+(la / ppm).toFixed(2), +(lb / ppm).toFixed(2)], depth: +(depth / ppm).toFixed(2), onInk: +(on / oc).toFixed(2) });
+      return keep;
+    };
     for (let guard = 0; guard < 20; guard++) {
       const n = pts.length; if (n < 6) break;
       const A0 = area2(pts); const sign = A0 > 0 ? 1 : -1;
       let cut = null;
       for (let s = 0; s < n && !cut; s++) {
         for (let k = 2; k <= 6 && !cut; k++) {
-          const A = pts[s]; const B = pts[(s + k) % n]; const pa = pts[(s - 1 + n) % n]; const nb = pts[(s + k + 1) % n];
-          if (!par(pa, A, B, nb)) continue;
+          const A = pts[s]; const B = pts[(s + k) % n];
+          // 18j: the sides either side, past a jog under 15 cm at an end (a frame's few pixels: 0040's doors were missed)
+          let ip = (s - 1 + n) % n; for (let g = 0; g < 3 && Math.hypot(pts[ip].u - A.u, pts[ip].v - A.v) < 0.15 * ppm; g++) ip = (ip - 1 + n) % n;
+          let inb = (s + k + 1) % n; for (let g = 0; g < 3 && Math.hypot(pts[inb].u - B.u, pts[inb].v - B.v) < 0.15 * ppm; g++) inb = (inb + 1) % n;
+          const pa = pts[ip]; const nb = pts[inb];
+          if (!par(pa, A, B, nb)) { const c18 = cornerDoor(s, k, pa, A, B, nb); if (c18) { cut = c18; } continue; }
           if (lineDist(B, pa, A) > tol || lineDist(A, B, nb) > tol) continue;
           const base = Math.hypot(B.u - A.u, B.v - A.v);
           if (base > 3.2 * ppm || base < 0.5 * ppm) continue;
@@ -10786,7 +11052,9 @@ const EMBEDDED_PLAN = null;
           // its far side open: under a third of it drawn (a bay's or porch's face is drawn all along)
           let far = 0; let fc = 0;
           for (let t = 0.15 * base; t <= 0.85 * base; t += 2) { fc++; const dd = depth * 0.85; if (dk2(A.u + tu * t + ou * dd, A.v + tv * t + ov * dd)) far++; }
-          if (!fc || far / fc > 0.33) continue;
+          // 18j: a double door's arcs can reach the far side over a third of it (0040: 41%); a bay's or porch's face is
+          // drawn nearly all along it
+          if (!fc || far / fc > 0.6) continue;
           // and some thin drawing in it (the leaves, their swings)
           let ink = 0; let ic = 0;
           for (let t = 2; t < base - 2; t += 3) for (let d = 3; d < depth - 1; d += 3) { ic++; if (dk(A.u + tu * t + ou * d, A.v + tv * t + ov * d)) ink++; }
@@ -10805,6 +11073,148 @@ const EMBEDDED_PLAN = null;
       }
     }
     return pts.length >= 3 ? pts : P0;
+  }
+  // 18j: A SIDE STANDING OFF THE WALL'S FACE (George's Batch 4, "corner", about 10 sheets: the line ran straight past a
+  // step in the outside wall, taking in paper between it and the wall). Along each side of 0.5 m or more, inward from
+  // it: how far to the first ink. Where that is 0.1 to 0.8 m, steady (within 3 px) for 0.25 m or more, and the ink there
+  // is wall-thick (not a window's or a door's thin line), the line goes in to that face: a notch, or its corner moved
+  // in when the run reaches the side's end.
+  function followNotches(P0) {
+    if (!S.plan || !S.plan.s || !S.src || !P0 || P0.length < 4) return P0;
+    const ppm = 1 / S.plan.s;
+    const lum = S.src.lumRaw || S.src.raw || S.src.lum; const W = S.src.w; const H = S.src.h;
+    const dk = (u, v) => { const x = Math.round(u); const y = Math.round(v); return x >= 0 && y >= 0 && x < W && y < H && lum[y * W + x] < 128; };
+    const thick = Math.max(5, Math.round(0.6 * (S.src.wallPx || 0)), Math.round(0.07 * ppm));
+    const minD = 0.1 * ppm; const maxD = 0.8 * ppm; const minRun = 0.25 * ppm;
+    let P = P0.map((q) => ({ u: q.u, v: q.v }));
+    T.notches18 = [];
+    for (let guard = 0; guard < 12; guard++) {
+      const n = P.length; let a2 = 0; for (let i = 0; i < n; i++) { const p = P[i]; const q = P[(i + 1) % n]; a2 += p.u * q.v - q.u * p.v; }
+      const sign = a2 > 0 ? 1 : -1;
+      let done = null;
+      for (let i = 0; i < n && !done; i++) {
+        const A = P[i]; const B = P[(i + 1) % n]; const L = Math.hypot(B.u - A.u, B.v - A.v); if (L < 0.5 * ppm) continue;
+        const tu = (B.u - A.u) / L; const tv = (B.v - A.v) / L; const nu = -sign * tv; const nv = sign * tu;   // into the house
+        if (!dk(A.u + tu * L * 0.5 + nu * 3, A.v + tv * L * 0.5 + nv * 3) && !dk(A.u + tu * L * 0.5 - nu * 3, A.v + tv * L * 0.5 - nv * 3)) { /* a side out on paper: probe anyway */ }
+        const st = 2; const S0 = []; for (let s = 2; s < L - 2; s += st) S0.push(s);
+        const depth = S0.map((s) => {
+          const x = A.u + tu * s; const y = A.v + tv * s;
+          for (let k = 0; k <= maxD + 2; k++) if (dk(x + nu * k, y + nv * k)) {
+            let run = 0; while (run < thick + 2 && dk(x + nu * (k + run), y + nv * (k + run))) run++;
+            return run >= thick ? k : -k - 1;   // thin ink: -(k+1)
+          }
+          return Infinity;
+        });
+        // runs of steady depth between minD and maxD, wall-thick
+        let j = 0;
+        while (j < S0.length && !done) {
+          const d = depth[j]; if (!(d >= minD && d <= maxD)) { j++; continue; }
+          let k = j; let lo = d; let hi = d;
+          while (k + 1 < S0.length && depth[k + 1] >= minD && depth[k + 1] <= maxD && Math.max(hi, depth[k + 1]) - Math.min(lo, depth[k + 1]) <= 3) { k++; lo = Math.min(lo, depth[k]); hi = Math.max(hi, depth[k]); }
+          const s0 = S0[j]; const s1 = S0[k];
+          if (s1 - s0 >= minRun) {
+            const dd = Math.round((lo + hi) / 2); const atA = s0 <= 2 * st + 2; const atB = s1 >= L - 2 * st - 4;
+            // either end inside the side: the face there comes back to the line (a step), not an opening
+            const back = (s) => { const x = A.u + tu * s; const y = A.v + tv * s; for (let q = 0; q <= 3; q++) if (dk(x + nu * q, y + nv * q)) return true; return false; };
+            const okA = atA || back(Math.max(0, s0 - 4)); const okB = atB || back(Math.min(L, s1 + 4));
+            // and no deeper than it is long (chatsworth's porch corner, 0.52 m along and 0.61 m in: the walls inside it crossed)
+            if (okA && okB && !(atA && atB) && s1 - s0 >= dd) {
+              const pin = (s, o) => ({ u: A.u + tu * s + nu * o, v: A.v + tv * s + nv * o });
+              const ins = [];
+              if (atA) { ins.push(pin(0, dd)); } else { ins.push(pin(s0 - 1, 0)); ins.push(pin(s0 - 1, dd)); }
+              if (atB) { ins.push(pin(L, dd)); } else { ins.push(pin(s1 + 1, dd)); ins.push(pin(s1 + 1, 0)); }
+              const R = [];
+              for (let m = 0; m < n; m++) {
+                if (m === i) { if (!atA) R.push(P[m]); R.push(...ins); continue; }
+                if (m === (i + 1) % n && atB) continue;
+                R.push(P[m]);
+              }
+              done = R; T.notches18.push({ side: i, from: +(s0 / ppm).toFixed(2), to: +(s1 / ppm).toFixed(2), depth: +(dd / ppm).toFixed(2) });
+            }
+          }
+          j = k + 1;
+        }
+      }
+      if (!done) break;
+      P = done;
+    }
+    // a notch that makes the line cross itself (chatsworth's porch: plans_gates PL2) is not taken
+    const crosses18 = (Q) => { const n = Q.length; const X = (a, b, c, d) => { const o = (p, q, r) => Math.sign((q.u - p.u) * (r.v - p.v) - (q.v - p.v) * (r.u - p.u)); return o(a, b, c) * o(a, b, d) < 0 && o(c, d, a) * o(c, d, b) < 0; }; for (let i = 0; i < n; i++) for (let j = i + 2; j < n; j++) { if (i === 0 && j === n - 1) continue; if (X(Q[i], Q[(i + 1) % n], Q[j], Q[(j + 1) % n])) return true; } return false; };
+    if (P.length < 3 || (crosses18(P) && !crosses18(P0))) { T.notches18 = []; return P0; }
+    return P;
+  }
+  // 18j: A CORNER CUT AT AN ANGLE (George's Batch 4, bays: a splayed wall or window across a corner, and the line went
+  // round the square corner outside it, over paper). At a square corner of the outline: inward from each side, near the
+  // corner, how far to the first ink; where that falls in a straight line to nothing (within 2 px), from 0.15 to 2.5 m
+  // each way, and the two sides agree on the line, the corner is cut along it.
+  function chamferCorners(P0) {
+    if (!S.plan || !S.plan.s || !S.src || !P0 || P0.length < 4) return P0;
+    const ppm = 1 / S.plan.s;
+    const lum = S.src.lumRaw || S.src.raw || S.src.lum; const W = S.src.w; const H = S.src.h;
+    const dk = (u, v) => { const x = Math.round(u); const y = Math.round(v); return x >= 0 && y >= 0 && x < W && y < H && lum[y * W + x] < 128; };
+    let P = P0.map((q) => ({ u: q.u, v: q.v })); T.chamfers18 = [];
+    for (let guard = 0; guard < 8; guard++) {
+      const n = P.length; let a2 = 0; for (let i = 0; i < n; i++) { const p = P[i]; const q = P[(i + 1) % n]; a2 += p.u * q.v - q.u * p.v; }
+      let done = null;
+      for (let i = 0; i < n && !done; i++) {
+        const V = P[i]; const Pp = P[(i - 1 + n) % n]; const Pn = P[(i + 1) % n];
+        const L1 = Math.hypot(Pp.u - V.u, Pp.v - V.v); const L2 = Math.hypot(Pn.u - V.u, Pn.v - V.v); if (L1 < 0.4 * ppm || L2 < 0.4 * ppm) continue;
+        const e1 = { u: (Pp.u - V.u) / L1, v: (Pp.v - V.v) / L1 }; const e2 = { u: (Pn.u - V.u) / L2, v: (Pn.v - V.v) / L2 };
+        if (Math.abs(e1.u * e2.u + e1.v * e2.v) > 0.17) continue;   // square, within 10 degrees
+        const cr = (Pp.u - V.u) * (Pn.v - V.v) - (Pp.v - V.v) * (Pn.u - V.u); if ((cr > 0) === (a2 > 0)) continue;   // a corner standing out (convex), not a re-entrant one
+        const maxL = Math.min(2.5 * ppm, L1 + 3, L2 + 3);
+        const probe = (e, f) => { const out = []; for (let t = 2; t < maxL; t += 2) { const x = V.u + e.u * t; const y = V.v + e.v * t; let k = 0; for (; k <= maxL; k++) if (dk(x + f.u * k, y + f.v * k)) break; out.push([t, k]); if (k <= 2) break; } return out; };
+        const fit = (pts) => {
+          if (pts.length < 6) return null; const last = pts[pts.length - 1]; if (last[1] > 2) return null;
+          const a = last[0]; const b = pts[0][1]; if (a < 0.15 * ppm || b < 0.15 * ppm || b > maxL) return null;
+          for (const [t, k] of pts) if (Math.abs(k - b * (1 - t / a)) > 2.5 + 0.02 * b) return null;
+          return { a, b };
+        };
+        const f1 = fit(probe(e1, e2)); const f2 = fit(probe(e2, e1)); if (!f1 || !f2) continue;
+        if (Math.abs(f1.a - f2.b) > 4 + 0.05 * f1.a || Math.abs(f1.b - f2.a) > 4 + 0.05 * f1.b) continue;   // the same line seen from both sides
+        const a = (f1.a + f2.b) / 2; const b = (f1.b + f2.a) / 2;
+        const R = []; for (let m = 0; m < n; m++) { if (m === i) { if (a < L1 - 3) R.push({ u: V.u + e1.u * a, v: V.v + e1.v * a }); if (b < L2 - 3) R.push({ u: V.u + e2.u * b, v: V.v + e2.v * b }); } else R.push(P[m]); }   // reaching the next corner: that corner
+        done = R; T.chamfers18.push({ a: +(a / ppm).toFixed(2), b: +(b / ppm).toFixed(2) });
+      }
+      if (!done) break;
+      P = done;
+    }
+    return P;
+  }
+  // 18j: A SHORT SIDE TILTED BY THE DRAWING'S PIXELS (George, The Glen: "the short wall angle is a right angle ... the
+  // program needs to follow the wall round correctly"): a side under 1 m whose ends lie within 2.5 cm (or 2.5 px) of one
+  // line square to the house is laid on that line, and its corners made where it meets the sides either side. One drawn
+  // at a real angle (further across than that) is left as it is.
+  function snapShortSides(P0) {
+    if (!S.plan || !S.plan.s || !P0 || P0.length < 4) return P0;
+    const ppm = 1 / S.plan.s; const n = P0.length;
+    // the house's square: the long sides' directions, folded to a quarter turn
+    // (the longest side's square, and the long sides within 2 degrees of it: an angled wing does not tilt it)
+    let tL = null; let bestL = 0;
+    for (let i = 0; i < n; i++) { const a = P0[i]; const b = P0[(i + 1) % n]; const L = Math.hypot(b.u - a.u, b.v - a.v); if (L > bestL) { bestL = L; tL = Math.atan2(b.v - a.v, b.u - a.u); } }
+    if (tL === null || bestL < 1 * ppm) return P0;
+    let cx = 0; let cy = 0;
+    for (let i = 0; i < n; i++) {
+      const a = P0[i]; const b = P0[(i + 1) % n]; const L = Math.hypot(b.u - a.u, b.v - a.v); if (L < 1 * ppm) continue;
+      let o = Math.atan2(b.v - a.v, b.u - a.u) - tL; o -= Math.round(o / (Math.PI / 2)) * (Math.PI / 2); if (Math.abs(o) > 2 * Math.PI / 180) continue;
+      cx += L * Math.cos(o); cy += L * Math.sin(o);
+    }
+    const th0 = tL + Math.atan2(cy, cx);
+    const P = P0.map((q) => ({ u: q.u, v: q.v })); let moved = 0;
+    const inter = (p1, d1, p2, d2) => { const den = d1.u * d2.v - d1.v * d2.u; if (Math.abs(den) < 1e-9) return null; const t = ((p2.u - p1.u) * d2.v - (p2.v - p1.v) * d2.u) / den; return { u: p1.u + d1.u * t, v: p1.v + d1.v * t }; };
+    for (let i = 0; i < n; i++) {
+      const a = P[i]; const b = P[(i + 1) % n]; const L = Math.hypot(b.u - a.u, b.v - a.v); if (L >= 1 * ppm || L < 2) continue;
+      const ang = Math.atan2(b.v - a.v, b.u - a.u); let off = ang - th0; off -= Math.round(off / (Math.PI / 2)) * (Math.PI / 2);
+      const across = L * Math.abs(Math.sin(off)); if (across < 0.3 || across > Math.max(2.5, 0.025 * ppm)) continue;
+      const na = ang - off; const d = { u: Math.cos(na), v: Math.sin(na) }; const m = { u: (a.u + b.u) / 2, v: (a.v + b.v) / 2 };
+      const p0 = P[(i - 1 + n) % n]; const p3 = P[(i + 2) % n];
+      const dPrev = { u: a.u - p0.u, v: a.v - p0.v }; const dNext = { u: p3.u - b.u, v: p3.v - b.v };
+      const A2 = inter(p0, dPrev, m, d); const B2 = inter(b, dNext, m, d);
+      if (!A2 || !B2 || Math.hypot(A2.u - a.u, A2.v - a.v) > 0.05 * ppm + 3 || Math.hypot(B2.u - b.u, B2.v - b.v) > 0.05 * ppm + 3) continue;
+      P[i] = A2; P[(i + 1) % n] = B2; moved++;
+    }
+    T.shortSnapped18 = moved;
+    return P;
   }
   // 18a: A VALLEY between two parts of the house (George: "jumps across valley"): behind a stretch of a side over white
   // paper (0.5 m or more), a patch of EMPTY paper closed in by lines within 2.5 m, the side itself its open edge. A room
@@ -10896,24 +11306,30 @@ const EMBEDDED_PLAN = null;
     // squared and stepped (30e), then any door drawn open outside a wall taken off (03a)
     const ppm18 = 1 / S.plan.s;
     // 18a: pixel stairs off first; square only near the sheet's axes; icons off
-    const tidy00 = Core.tidyOutline(dropIconBumps(straightenRing(floor.core || floor.pts)), STEP_M * ppm18, 12, true);   // 16c: the core (a thin-lined bay taken off, put back below)
+    // 18j: no corner more than 0.3 m outside the floor as traced: a tidying that puts one there is not taken (a short
+    // jog on a sloping wall can be squared into two sides that meet far off)
+    const tr18 = straightenRing(floor.core || floor.pts);
+    const bx18 = { u0: Math.min(...tr18.map((q) => q.u)), u1: Math.max(...tr18.map((q) => q.u)), v0: Math.min(...tr18.map((q) => q.v)), v1: Math.max(...tr18.map((q) => q.v)) };
+    const off18 = (P) => P.some((q) => q.u < bx18.u0 - 0.3 * ppm18 || q.u > bx18.u1 + 0.3 * ppm18 || q.v < bx18.v0 - 0.3 * ppm18 || q.v > bx18.v1 + 0.3 * ppm18);
+    const tidyS = (P, a, b, c) => { const t = Core.tidyOutline(P, a, b, c); return off18(t) ? P : t; };
+    const tidy00 = tidyS(dropIconBumps(straightenRing(floor.core || floor.pts)), STEP_M * ppm18, 12, true);   // 16c: the core (a thin-lined bay taken off, put back below)
     const tidy0 = dropIconBumps(tidy00);
     const noDoors = tidy0.length >= 6 ? Core.dropDoorBumps(tidy0, S.src.lumRaw || S.src.lum, S.src.w, S.src.h, 1 / S.plan.s, S.src.wallPx || 0, 1.2) : tidy0;
-    const tidy = noDoors.length < tidy00.length ? Core.tidyOutline(noDoors, STEP_M / S.plan.s, 12, true) : tidy0;
+    const tidy = noDoors.length < tidy00.length ? tidyS(noDoors, STEP_M / S.plan.s, 12, true) : tidy0;
     // each side on its drawn outer face, then tidied once more: the faces of a wall and of a window in it differ by a
     // few pixels, which left steps under 0.12 m (03c)
     if (tidy.length < 3) return floor.pts;
     const faced = onOuterFace(tidy);
-    const again1 = Core.tidyOutline(faced, STEP_M / S.plan.s, 12, true);
+    const again1 = tidyS(faced, STEP_M / S.plan.s, 12, true);
     // 18a: icons off once more (now the sides are on the wall's face), then any valley followed in
     const vall = fillValleys(dropSwingBumps(dropIconBumps(again1.length >= 3 ? again1 : faced)));   // 18g: doors drawn open outside, off
-    const again = vall !== again1 ? Core.tidyOutline(vall, STEP_M / S.plan.s, 12, true) : again1;
+    const again = vall !== again1 ? tidyS(vall, STEP_M / S.plan.s, 12, true) : again1;
     T.outlineStages = { straight: straightenRing(floor.core || floor.pts), tidy00, tidy0, tidy, faced, again1, vall, again };
     // a bay drawn in thin lines: round it, square or splayed (05b), or curved (16c); a step at a corner taken off (05f)
     T.lastBays = [];
     T.lastCurves = [];
     T.cbRuns = [];
-    const fin18 = followSlopes(curvedBays(dropCornerSteps(findBays(again.length >= 3 ? again : faced))));   // 18c: and slopes
+    const fin18 = snapShortSides(chamferCorners(followNotches(followSlopes(curvedBays(dropCornerSteps(findBays(again.length >= 3 ? again : faced)))))));   // 18c: and slopes; 18j: steps in the face followed, pixel tilts off short sides
     // 18a: started at the corner nearest the traced edge's first point, as it always came out (things that number the
     // house's corners, a tap test among them, keep the same corner 1)
     const st18 = (floor.core || floor.pts)[0];
@@ -11903,7 +12319,12 @@ const EMBEDDED_PLAN = null;
         const now = (e && e.timeStamp) || performance.now();   // 16f: when the tap happened, not when the busy page got to it
         const last = T.lastSideTap;
         const near = g.touch ? 24 : 8;
-        if (!cancelled && t && g.hit.what === 'side' && last && last.id === t.id && now - last.at < 500 && Math.hypot(g.start.x - last.x, g.start.y - last.y) <= near) {
+        // 18i: a second tap on the same point of a plot within 0.5 s takes the point off (George: "double clicking plot line
+        // vector delete vector")
+        const lp18 = T.lastPtTap; T.lastPtTap = !cancelled && t && g.hit.what === 'point' ? { id: t.id, i: g.hit.i, at: now } : null;
+        const del18 = !!(lp18 && T.lastPtTap && lp18.id === T.lastPtTap.id && lp18.i === T.lastPtTap.i && now - lp18.at < 500 && removePlotPoint(t, g.hit.i));
+        if (del18) { T.lastPtTap = null; T.lastSideTap = null; }
+        else if (!cancelled && t && g.hit.what === 'side' && last && last.id === t.id && now - last.at < 500 && Math.hypot(g.start.x - last.x, g.start.y - last.y) <= near) {
           T.lastSideTap = null;
           clearTimeout(T.sideTapTimer); T.pullPin = null;   // 16f: the menu that was waiting for a single tap
           closeSidePop();
@@ -12782,7 +13203,7 @@ const EMBEDDED_PLAN = null;
   function autoFold() { return !navigator.webdriver || !!T.forceAutoFold; }
   // 05r: every part of the right-hand menu folded until opened (Scale opens when a plan comes in, and folds once set)
   function foldAll() { return !navigator.webdriver || !!T.forceFoldAll; }
-  const SEC_FOLD = [['floorBox', 'floorHead'], ['traceBox', 'traceHead'], ['freeBox', 'freeHead']];
+  const SEC_FOLD = [['floorBox', 'floorHead'], ['traceBox', 'traceHead'], ['laserBox', 'laserHead'], ['freeBox', 'freeHead']];   // 18i: Laser measuring
   // 05s: the floors and Stack the floors live in their own part of the menu
   { const fb = $('floorBox'); const fl = $('floorList'); const bf = $('btnFloors');
     if (fb && fl && bf) { fb.append(fl); const acts = document.createElement('div'); acts.className = 'scan-acts'; acts.append(bf); fb.append(acts); } }
@@ -15566,7 +15987,7 @@ async function postcodeCentroid(pc){
     if (r.type === 'reading') lzReading(r);
   }
   // ---------- guided measuring
-  const LZ0 = () => ({ mode: 'title', hold: 'touch', off: 0.35, shots: [], skipped: [], sketch: [] });
+  const LZ0 = () => ({ mode: inspRing() ? 'title' : 'sketch', hold: 'touch', off: 0.35, shots: [], skipped: [], sketch: [] });   // 18j: from scratch unless a title is loaded
   function lzS() { if (!S.show.laser) S.show.laser = LZ0(); return S.show.laser; }   // for changes: kept with the job
   function lzR() { return S.show.laser || LZ0(); }   // for reading: nothing kept until something is measured
   function lzActive() { const L = lzR(); return !!(LZ.chr || T.lzSketching || T.lzPending || L.shots.length || L.sketch.length || T.lzShow); }
@@ -15588,6 +16009,7 @@ async function postcodeCentroid(pc){
         for (let k = 0; k < R.length; k++) { if (mk && !mk[k]) continue; const s0 = R[k]; const s1 = R[(k + 1) % R.length]; const ex = s1.x - s0.x; const ey = s1.y - s0.y; const den = d.x * ey - d.y * ex; if (Math.abs(den) < 1e-9) continue;
           const t = ((s0.x - p.x) * ey - (s0.y - p.y) * ex) / den; const s = ((s0.x - p.x) * d.y - (s0.y - p.y) * d.x) / den; if (t > 0.02 && s >= -1e-9 && s <= 1 + 1e-9 && (!best || t < best.t)) best = { t, side: k }; }
         if (!best || best.t > 80) return;
+        if (throughHouse(p, { x: p.x + d.x * best.t, y: p.y + d.y * best.t }, [O])) return;   // 18i: never through the house
         if (R0 && lzAlongRing(R, p, { x: p.x + d.x * best.t, y: p.y + d.y * best.t }, mk)) return;   // 18f: along the plot's own side
         out.push({ kind: 'ray', key: `r:${i}:${j}`, corner: i, a: { x: p.x, y: p.y }, dir: d, b: { x: p.x + d.x * best.t, y: p.y + d.y * best.t }, d: best.t, side: best.side });
       });
@@ -15615,17 +16037,40 @@ async function postcodeCentroid(pc){
   function lzPlotCorners() { const R = lzPlotRing(); return R ? plotCornerSet(R, plotEdgeMask(R, titleHouse())).size : 0; }   // 18h: the outer edge's
   function lzPlotRing() { const L = lzR(); if (Array.isArray(L.ring) && L.ring.length >= 3) return L.ring; const t = lzDrawnPlot(); return t ? t.pts.map((q) => ({ x: q.x, y: q.y })) : null; }
   // from each house corner, the plot corner nearest it that it can see
-  function lzNear(R) {
+  function lzNear(R, need) {   // 18i: a diagonal to each plot corner (or those asked for), from the house corner nearest it
     const O = titleHouse(); if (!O || !R) return [];
-    const out = [];
-    O.forEach((p, i) => {
-      const n0 = O.length; if (Math.hypot(p.x - O[(i + n0 - 1) % n0].x, p.y - O[(i + n0 - 1) % n0].y) < 0.5 || Math.hypot(p.x - O[(i + 1) % n0].x, p.y - O[(i + 1) % n0].y) < 0.5) return;   // a step in the wall, not a corner to measure from
-      let best = null;
-      const cs = plotCornerSet(R, plotEdgeMask(R, O));   // 18h: the outer edge's corners
-      R.forEach((q, v) => { const d = Math.hypot(q.x - p.x, q.y - p.y); if (cs.has(v) && d > 0.05 && lzSees(O, p, q) && (!best || d < best.d)) best = { d, v, q }; });
-      if (best) out.push({ kind: 'near', key: `n:${i}`, corner: i, v: best.v, from: { x: p.x, y: p.y }, to: { x: best.q.x, y: best.q.y }, expect: best.d, label: lzLetter(i) });
-    });
-    return out;
+    const cs = need || plotCornerSet(R, plotEdgeMask(R, O));
+    const all = [...plotCornerSet(R, plotEdgeMask(R, O))].sort((a2, b2) => a2 - b2);
+    return plotNearest(R, cs, [O]).map((nv) => ({ kind: 'near', key: `n:${nv.v}`, corner: nv.i, v: nv.v, pc: all.indexOf(nv.v) + 1, from: nv.from, to: nv.to, expect: nv.d, label: lzLetter(nv.i) }));
+  }
+  // 18i: AS FEW SHOTS AS FIX THE PLOT (George: "do we really need 37 shots ... the most efficient route and least amount of
+  // measurements"): the outer edge's sides, corner to corner; each square to the house (within 1.5 degrees) is fixed by one shot along
+  // a wall line to it (the shortest, or one from a corner already stood at if under 3 m longer); a side no square shot reaches
+  // is fixed by diagonals to its two corners. Taken in the order round the house, starting after the longest walk.
+  function lzPlan(R) {
+    const O = titleHouse(); if (!O || !R || R.length < 3) return [];
+    const mk = plotEdgeMask(R, O); const cs = plotCornerSet(R, mk); const n = R.length;
+    const rays = lzRays(R).map((r) => ({ ...r, from: r.a, to: r.b, expect: r.d, label: lzLetter(r.corner) }));
+    const runs = [];
+    for (const c0 of [...cs].sort((a2, b2) => a2 - b2)) {
+      if (!mk[c0]) continue; const sides = []; let k = c0; let end = (c0 + 1) % n;
+      for (let g = 0; g < n; g++) { sides.push(k); end = (k + 1) % n; if (cs.has(end)) break; let m = -1; for (let s = 1; s < n; s++) { const c2 = (k + s) % n; if (mk[c2]) { m = c2; break; } } if (m < 0 || m === c0) break; k = m; }
+      const L = Math.hypot(R[end].x - R[c0].x, R[end].y - R[c0].y) || 1; runs.push({ c0, end, sides, u: { x: (R[end].x - R[c0].x) / L, y: (R[end].y - R[c0].y) / L } });
+    }
+    const pick = []; const needC = new Set();
+    for (const rn of runs) {
+      const cand = rays.filter((r) => rn.sides.includes(r.side) && Math.abs(r.dir.x * rn.u.x + r.dir.y * rn.u.y) < Math.sin((1.5 * Math.PI) / 180)).sort((p2, q2) => p2.expect - q2.expect);
+      if (cand.length) pick.push({ rn, cand, r: cand[0] }); else { needC.add(rn.c0); needC.add(rn.end); }
+    }
+    for (const pk of pick) { const st = new Set(pick.filter((x) => x !== pk).map((x) => x.r.corner)); const alt = pk.cand.find((r) => st.has(r.corner) && r.expect <= pk.r.expect + 3); if (alt) pk.r = alt; }
+    const shots = pick.map((pk) => pk.r).concat(needC.size ? lzNear(R, needC) : []);
+    // round the house: by corner, from the corner after the longest gap between the corners stood at
+    const per = []; { let s = 0; for (let i = 0; i < O.length; i++) { per.push(s); s += Math.hypot(O[(i + 1) % O.length].x - O[i].x, O[(i + 1) % O.length].y - O[i].y); } per.push(s); }
+    const used = [...new Set(shots.map((x) => x.corner))].sort((a2, b2) => a2 - b2);
+    let start = used[0];
+    if (used.length > 1) { let gap = -1; used.forEach((c2, k) => { const nx = used[(k + 1) % used.length]; const gp = k + 1 < used.length ? per[nx] - per[c2] : per[O.length] - per[c2] + per[nx]; if (gp > gap) { gap = gp; start = nx; } }); }
+    const rank = (c2) => (c2 - start + O.length) % O.length;
+    return shots.sort((p2, q2) => rank(p2.corner) - rank(q2.corner) || (p2.kind === 'ray' ? 0 : 1) - (q2.kind === 'ray' ? 0 : 1));
   }
   // from scratch: two house corners per sketched corner, the pair meeting nearest a right angle, neither through the house
   function lzSees(O, p, q) { for (let k = 1; k < 10; k++) { const t = k / 10; if (Core.insidePolygon(p.x + (q.x - p.x) * t, p.y + (q.y - p.y) * t, O)) return false; } return true; }
@@ -15675,10 +16120,7 @@ async function postcodeCentroid(pc){
     const L = lzR(); const O = titleHouse(); if (!O) return [];
     if (L.mode === 'title') return lzRays().map((r) => ({ ...r, from: r.a, to: r.b, expect: r.d, label: lzLetter(r.corner) }));
     if (lzPlotMode()) {   // 18f: every house corner: along its wall lines to the plot, then to the plot corner nearest it
-      const R = lzPlotRing(); const rays = lzRays(R).map((r) => ({ ...r, from: r.a, to: r.b, expect: r.d, label: lzLetter(r.corner) })); const near = lzNear(R);
-      const out = []; const n = O.length;
-      for (let i = 0; i < n; i++) { rays.filter((r) => r.corner === i).forEach((r) => out.push(r)); near.filter((r) => r.corner === i).forEach((r) => out.push(r)); }
-      return out;
+      return lzPlan(lzPlotRing());   // 18i: as few as fix it, round the house
     }
     const steps = []; const fixed = lzFixed();
     L.sketch.forEach((c, k) => {
@@ -15698,7 +16140,7 @@ async function postcodeCentroid(pc){
     if (!st) return null;
     if (st.kind === 'ray' && T.lzRev) return `Stand at the red dot on the boundary (in line with the wall from house corner ${st.label}), ${lzR().hold === 'chest' ? 'laser at your chest, just behind it' : 'laser touching it'}. Aim back along the wall line at house corner ${st.label}: the same distance. ${lzPlotMode() ? 'The plot you drew' : 'Land Registry'} says about ${lzF(st.expect)}.`;   // 16f; 18f
     if (st.kind === 'ray' && lzPlotMode()) return `Stand at house corner ${st.label}, ${hold}. Aim along the wall line, away from the house, at the boundary. The plot you drew says about ${lzF(st.expect)}.`;   // 18f
-    if (st.kind === 'near') return `Stand at house corner ${st.label}, ${hold}, and aim at plot corner ${st.v + 1} (the nearest). The plot you drew says about ${lzF(st.expect)}.`;   // 18f
+    if (st.kind === 'near') return `Stand at house corner ${st.label}, ${hold}, and aim at plot corner ${st.pc || st.v + 1}. The plot you drew says about ${lzF(st.expect)}.`;   // 18f
     if (st.kind === 'ray') return `Stand at house corner ${st.label}, ${hold}. Aim along the wall line, away from the house, at the boundary. Land Registry says about ${lzF(st.expect)}.`;
     if (st.kind === 'tri') return `Boundary corner ${st.k + 1}: stand at house corner ${st.label}, ${hold}, and aim at that corner. About ${lzF(st.expect)}.`;
     return `Check: from boundary corner ${st.k + 1}, aim at corner ${st.j + 1}. It should read ${lzF(st.expect)}.`;
@@ -15728,7 +16170,7 @@ async function postcodeCentroid(pc){
     if (st.kind === 'ray') Object.assign(shot, { dir: { ...st.dir }, side: st.side, corner: st.corner });
     if (st.kind === 'tri') Object.assign(shot, { k: st.k, n: st.n, corner: st.corner });
     if (st.kind === 'check') Object.assign(shot, { k: st.k, j: st.j });
-    if (st.kind === 'near') Object.assign(shot, { corner: st.corner, v: st.v, to: { x: st.to.x, y: st.to.y } });   // 18f
+    if (st.kind === 'near') Object.assign(shot, { corner: st.corner, v: st.v, pc: st.pc, to: { x: st.to.x, y: st.to.y } });   // 18f; 18i its corner's number
     if (lzPlotMode() && !(Array.isArray(L.ring) && L.ring.length >= 3)) { const t0 = lzDrawnPlot(); if (t0) { L.ring = t0.pts.map((q) => ({ x: q.x, y: q.y })); L.plotId = t0.id; } }   // 18f
     L.shots.push(shot); T.lzPending = null;
     lzApply(); save(); syncLaser(); requestRender();
@@ -15806,7 +16248,7 @@ async function postcodeCentroid(pc){
     return L.shots.filter((s) => s.kind === 'ray' || s.kind === 'near').map((s) => {   // 18f: and to the nearest plot corner
       const used = lzUsed(s); const diff = used - s.expect; const a = Math.abs(diff);
       n[s.side] = (n[s.side] || 0) + 1;
-      return { from: lzLetter(s.corner) + (s.kind === 'near' ? ` to plot corner ${s.v + 1}` : ''), side: s.side, lr: s.expect, measured: used, diff, mark: a < 0.1 ? 'fine' : a < 0.3 ? 'check' : 'big', via: !!s.via };
+      return { from: lzLetter(s.corner) + (s.kind === 'near' ? ` to plot corner ${s.pc || s.v + 1}` : ''), side: s.side, lr: s.expect, measured: used, diff, mark: a < 0.1 ? 'fine' : a < 0.3 ? 'check' : 'big', via: !!s.via };
     });
   }
   function lzTableSum(rows) {
@@ -15854,7 +16296,7 @@ async function postcodeCentroid(pc){
     }
     if (lzPlotMode()) {   // 18f
       const R = lzPlotRing(); const t = lzDrawnPlot(); if (!R || !t) return;
-      const fit = lzTitleFit(R, L.shots.filter((s) => s.kind === 'ray'), lzUsed);
+      const fit = lzTitleFit(R, L.shots.filter((s) => s.kind === 'ray'), lzUsed, slitSides(t).size > 0);   // 18j: the join kept
       if (fit.length === t.pts.length) { t.pts = fit.map((q) => ({ x: +q.x.toFixed(3), y: +q.y.toFixed(3) })); t.measuredSides = fit.measured.slice(); }
       refresh();
       return;
@@ -15869,7 +16311,7 @@ async function postcodeCentroid(pc){
   }
   // 15c: the title's sides as straight runs (pieces in line are one side), each moved through its measured points;
   // corners re-met only where the two runs cross near the old corner, otherwise put square onto the measured line
-  function lzTitleFit(R, shots, used) {
+  function lzTitleFit(R, shots, used, joinInLine) {   // 18j: joinInLine, runs in line with each other (within 3 deg, 30 cm) one side
     const n = R.length; const ang = (i) => { const q = R[(i + 1) % n]; return Math.atan2(q.y - R[i].y, q.x - R[i].x); };
     const len = (i) => { const q = R[(i + 1) % n]; return Math.hypot(q.x - R[i].x, q.y - R[i].y); };
     const inLine = (i, j) => { let d = Math.abs(ang(i) - ang(j)) % (2 * Math.PI); if (d > Math.PI) d = 2 * Math.PI - d; return d < 12 * Math.PI / 180; };
@@ -15884,6 +16326,15 @@ async function postcodeCentroid(pc){
       if (cur && inLine((i + n - 1) % n, i) && inLine(ref, i)) { cur.push(i); if (len(i) > len(ref)) ref = i; }
       else { cur = [i]; ref = i; runs.push(cur); } }
     const runOf = new Array(n); runs.forEach((r, k) => r.forEach((i) => { runOf[i] = k; }));
+    if (joinInLine) {   // 18j
+      const dir = (r) => { const a0 = R[r[0]]; const b0 = R[(r[r.length - 1] + 1) % n]; const L0 = Math.hypot(b0.x - a0.x, b0.y - a0.y) || 1; return { p: a0, d: { x: (b0.x - a0.x) / L0, y: (b0.y - a0.y) / L0 }, L: L0 }; };
+      for (let k1 = 0; k1 < runs.length; k1++) for (let k2 = k1 + 1; k2 < runs.length; k2++) {
+        const A1 = dir(runs[k1]); const A2 = dir(runs[k2]); if (A1.L < 0.3 || A2.L < 0.3) continue;
+        if (Math.abs(A1.d.x * A2.d.y - A1.d.y * A2.d.x) > Math.sin(3 * Math.PI / 180) || A1.d.x * A2.d.x + A1.d.y * A2.d.y < 0) continue;
+        if (Math.abs((A2.p.x - A1.p.x) * A1.d.y - (A2.p.y - A1.p.y) * A1.d.x) > 0.3) continue;
+        for (const i of runs[k2]) if (runOf[i] === k2) runOf[i] = runOf[runs[k1][0]];
+      }
+    }
     const lines = runs.map((r) => { const a0 = R[r[0]]; const b0 = R[(r[r.length - 1] + 1) % n]; let dx = b0.x - a0.x, dy = b0.y - a0.y;
       if (Math.hypot(dx, dy) < 1e-6) { const q = R[(r[0] + 1) % n]; dx = q.x - a0.x; dy = q.y - a0.y; }
       const L0 = Math.hypot(dx, dy) || 1; return { p: { x: a0.x, y: a0.y }, d: { x: dx / L0, y: dy / L0 }, measured: false, len: r.reduce((s, i) => s + len(i), 0) }; });
@@ -15929,9 +16380,10 @@ async function postcodeCentroid(pc){
   }
   function syncLaser() {
     const panel = $('lzPanel'); if (!panel) return;
-    panel.hidden = !S.src;
+    panel.hidden = !S.src; if ($('laserBox')) $('laserBox').hidden = !S.src;   // 18i: its own section
     if (panel.hidden) return;
     const L = lzR();
+    if (S.show.laser && !L.modeChosen && !L.shots.length) { const m18 = inspRing() ? 'title' : 'sketch'; if (L.mode !== m18) L.mode = m18; }   // 18j: until chosen, from scratch unless a title is loaded
     $('lzMode').value = L.mode; $('lzHold').value = L.hold; if (document.activeElement !== $('lzOff')) $('lzOff').value = Math.round(L.off * 100);
     $('lzOff').disabled = L.hold !== 'chest';
     $('lzSketchRow').hidden = L.mode !== 'sketch';
@@ -15963,9 +16415,28 @@ async function postcodeCentroid(pc){
     else $('lzRead').textContent = T.lzNote || (r ? `Reading ${lzF(r.level)}` : '');
     $('btnLzAccept').disabled = !(r && st) || !!(T.lzBlock && T.lzBlock.stage === 'me'); $('btnLzRetake').disabled = !r; $('btnLzSkip').disabled = !st || !!T.lzBlock;
     lzTableSync();   // 16a
+    lzViewSync();   // 18j
     const box = $('lzList'); box.innerHTML = '';
     L.shots.slice().reverse().slice(0, 30).forEach((s) => { const d = document.createElement('div'); const used = lzUsed(s); const diff = used - s.expect;
       d.textContent = `${s.kind === 'ray' ? `From ${lzLetter(s.corner)} along the wall` : s.kind === 'tri' ? `Corner ${s.k + 1} from ${lzLetter(s.corner)}` : `Check ${s.k + 1} to ${s.j + 1}`}: ${lzF(used)} (${diff >= 0 ? '+' : '−'}${Math.abs(diff).toFixed(2)})`; box.appendChild(d); });
+  }
+  // 18j: THE SHOTS TAKEN, ONE AT A TIME (George: "allow user to cycle through shots after they've been done and highlight
+  // them on plan green"): T.lzView, the shot shown (null: the shot to take, as before)
+  function lzShotEnd(s) { if (s.kind === 'ray' && s.dir) return { x: s.from.x + s.dir.x * lzUsed(s), y: s.from.y + s.dir.y * lzUsed(s) }; if (s.to) return s.to; const f = lzFixed()[s.k]; return f || (lzR().sketch[s.k] || null); }
+  function lzShotText(s) { const used = lzUsed(s); const diff = used - s.expect; const what = s.kind === 'ray' ? `from ${lzLetter(s.corner)} along the wall line` : s.kind === 'near' ? `from ${lzLetter(s.corner)} to plot corner ${s.pc || s.v + 1}` : s.kind === 'tri' ? `corner ${s.k + 1} from ${lzLetter(s.corner)}` : `check ${s.k + 1} to ${s.j + 1}`; return `${what}: ${lzF(used)} (${diff >= 0 ? '+' : '−'}${Math.abs(diff).toFixed(2)} m on the drawing)`; }
+  function lzViewSync() {
+    const L = lzR(); const row = $('lzViewRow'); if (!row) return;
+    if (T.lzView != null && T.lzView >= L.shots.length) T.lzView = null;
+    row.hidden = !L.shots.length;
+    $('lzViewInfo').textContent = T.lzView == null ? `${L.shots.length} shot${L.shots.length === 1 ? '' : 's'} taken` : `Shot ${T.lzView + 1} of ${L.shots.length}: ${lzShotText(L.shots[T.lzView])}`;
+    $('btnLzPrev').disabled = !L.shots.length || T.lzView === 0;
+    $('btnLzNext').disabled = T.lzView == null;
+  }
+  function lzViewStep(d) {
+    const L = lzR(); const n = L.shots.length; if (!n) return;
+    if (T.lzView == null) T.lzView = d < 0 ? n - 1 : null; else { const v = T.lzView + d; T.lzView = v < 0 ? 0 : v >= n ? null : v; }
+    lzViewSync(); requestRender();
+    if (T.lzView != null) { const s = L.shots[T.lzView]; const e = lzShotEnd(s); if (s.from && e) { const vp = mainVp(); const a = w2s(vp, s.from.x, s.from.y); const b = w2s(vp, e.x, e.y); if (Math.min(a.x, b.x) < 0 || Math.max(a.x, b.x) > vp.W || Math.min(a.y, b.y) < 0 || Math.max(a.y, b.y) > vp.H) { S.view.cx = (s.from.x + e.x) / 2; S.view.cy = (s.from.y + e.y) / 2; requestRender(); } } }
   }
   function drawLaser(c, vp) {
     T.lzMeAt = null;
@@ -15982,6 +16453,19 @@ async function postcodeCentroid(pc){
     for (const s0 of L.shots) if (s0.kind === 'ray') { const q = { x: s0.from.x + s0.dir.x * lzUsed(s0), y: s0.from.y + s0.dir.y * lzUsed(s0) }; const s = w2s(vp, q.x, q.y); c.fillStyle = '#1f7a3a'; c.beginPath(); c.arc(s.x, s.y, 4.5, 0, Math.PI * 2); c.fill(); }
     const t = L.mode === 'title' ? lzTitleTrace() : S.traces.find((x) => x.fromLaser);
     if (t && L.mode === 'title' && t.measuredSides) { c.strokeStyle = '#1f7a3a'; c.lineWidth = 4; c.globalAlpha = 0.7; for (const i of t.measuredSides) { const a = t.pts[i]; const b0 = t.pts[(i + 1) % t.pts.length]; if (!a || !b0) continue; const A = w2s(vp, a.x, a.y); const B = w2s(vp, b0.x, b0.y); c.beginPath(); c.moveTo(A.x, A.y); c.lineTo(B.x, B.y); c.stroke(); } c.globalAlpha = 1; }
+    if (T.lzView != null && L.shots[T.lzView]) {   // 18j: a shot taken, shown green; the shot to take waits
+      const s = L.shots[T.lzView]; const e = lzShotEnd(s);
+      if (s.from && e) {
+        const A = w2s(vp, s.from.x, s.from.y); const B = w2s(vp, e.x, e.y);
+        c.strokeStyle = '#16a34a'; c.lineWidth = 3.5; c.beginPath(); c.moveTo(A.x, A.y); c.lineTo(B.x, B.y); c.stroke();
+        c.fillStyle = '#16a34a'; for (const P of [A, B]) { c.beginPath(); c.arc(P.x, P.y, 5, 0, Math.PI * 2); c.fill(); }
+        const tx = lzF(lzUsed(s)); c.font = `700 12px ${FONT}`; const tw = c.measureText(tx).width + 10; const mx = (A.x + B.x) / 2; const my = (A.y + B.y) / 2;
+        c.fillStyle = '#ffffff'; c.fillRect(mx - tw / 2, my - 10, tw, 20); c.strokeStyle = '#16a34a'; c.lineWidth = 1.5; c.strokeRect(mx - tw / 2, my - 10, tw, 20); c.fillStyle = '#14532d'; c.fillText(tx, mx, my + 0.5);
+        T.lzViewDrawn = { from: { ...s.from }, to: { ...e }, key: s.key };
+      }
+      T.lzDrawn = null; c.restore(); return;
+    }
+    T.lzViewDrawn = null;
     const st = lzCurrent().step;
     const BK = T.lzBlock && st && st.key === T.lzBlock.key ? T.lzBlock : null;   // 16a
     if (BK) {
@@ -16056,8 +16540,10 @@ async function postcodeCentroid(pc){
   $('lzSetSig').addEventListener('change', (e) => { const P = lzPrefs(); P.sig = e.target.checked; lzSavePrefs(P); });
   $('btnLzFnLen').addEventListener('click', () => lzSetFunc(1));
   $('btnLzFnInd').addEventListener('click', () => lzSetFunc(10));
-  $('lzMode').addEventListener('change', (e) => { pushUndo(); T.lzShow = true; lzS().mode = e.target.value; T.lzPending = null; T.lzSketching = false; save(); syncLaser(); requestRender(); });
+  $('lzMode').addEventListener('change', (e) => { pushUndo(); T.lzShow = true; lzS().mode = e.target.value; lzS().modeChosen = true; T.lzPending = null; T.lzSketching = false; save(); syncLaser(); requestRender(); });
   $('btnLzSketch').addEventListener('click', () => { T.lzSketching = !T.lzSketching; T.dimMode = false; T.inspPick = false; if (!T.lzSketching) { lzApply(); save(); } syncLaser(); requestRender(); });
+  $('btnLzPrev').addEventListener('click', () => lzViewStep(-1));   // 18j
+  $('btnLzNext').addEventListener('click', () => lzViewStep(1));
   $('btnLzSketchClear').addEventListener('click', () => { pushUndo(); const L = lzS(); L.sketch = []; L.sketchMine = undefined; L.shots = L.shots.filter((s) => s.kind === 'ray'); L.skipped = L.skipped.filter((k) => k.startsWith('r:')); save(); syncLaser(); requestRender(); });
   $('btnLzAccept').addEventListener('click', () => lzAccept());
   $('btnLzRetake').addEventListener('click', () => { T.lzPending = null; syncLaser(); });
@@ -16802,12 +17288,22 @@ async function postcodeCentroid(pc){
     cbRuns() { return (T.cbRuns || []).slice(); },
     joinRound(id) { const t = traceOf(id); if (!t) return false; pushUndo(); const r = joinRound(t); if (r) { refresh(); save(); requestRender(); } return r; },
     slits(id) { return [...slitSides(traceOf(id))]; },
+    lzView(i) { if (i !== undefined) { T.lzView = i; lzViewSync(); requestRender(); } return { view: T.lzView == null ? null : T.lzView, drawn: T.lzViewDrawn || null, info: $('lzViewInfo') ? $('lzViewInfo').textContent : '' }; },
+    lzViewStep(d) { lzViewStep(d); return T.lzView == null ? null : T.lzView; },
+    houseLengths() { return (T.houseLengths || []).slice(); },
+    planWhole(on) { if (on !== undefined) { T.planWhole = !!on; requestRender(); } return !!T.planWhole; },
+    lzPlan() { return lzPlotMode() ? lzSteps().map((s) => ({ kind: s.kind, key: s.key, corner: s.corner, side: s.side, v: s.v, pc: s.pc, expect: s.expect, from: s.from, to: s.to })) : null; },
+    throughHouse(p, q) { const O = houseOuter(); return O ? throughHouse(p, q, [O]) : null; },
+    plotPoints(id) { const t = traceOf(id); return t ? t.pts.map((q) => ({ x: q.x, y: q.y, vec: !!q.vec })) : null; },
     plotEdges(id) { const t = traceOf(id); return t ? plotEdgeMask(t.pts, houseOuter()) : null; },
     plotCorners(id) { const t = traceOf(id); return t ? [...plotCornerSet(t.pts, plotEdgeMask(t.pts, houseOuter()))].sort((a, b) => a - b) : null; },
     plotBoundaryLength(id) { return plotBoundaryLength(traceOf(id)); },
     lastJoin() { return T.lastJoin || null; },
     lastSketch() { return T.lastSketch || null; },
     swingBumps() { return (T.swingBumps || []).slice(); },
+    notches18() { return (T.notches18 || []).slice(); },
+    labelBoxes18() { return (T.labelBoxes18 || []).slice(); },
+    chamfers18() { return (T.chamfers18 || []).slice(); },
     lastPaste() { return T.lastPaste || null; },
     lzPlotMode() { return lzPlotMode(); },
     houseOuter() { const O = houseOuter(); return O ? O.map((q) => ({ x: q.x, y: q.y })) : null; },
