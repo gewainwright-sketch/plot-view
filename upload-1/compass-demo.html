@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Compass tool demo</title>
+<style>
+body{font:16px/1.4 -apple-system,Segoe UI,sans-serif;margin:0;padding:16px;background:#f4f2ec;color:#1c1c1a;max-width:560px}
+h1{font-size:19px;margin:0 0 10px}
+.bar{display:flex;gap:14px;align-items:center;background:#fff;border:1px solid #c9c7bd;border-radius:8px;padding:10px 12px}
+label.off{color:#9a988f}
+#panel{display:none;margin-top:10px;background:#fff;border:1px solid #1d6fd8;border-radius:8px;padding:12px}
+button{font:inherit;padding:9px 14px;border-radius:8px;border:1px solid #1d6fd8;background:#1d6fd8;color:#fff}
+button.plain{background:#fff;color:#1c1c1a;border-color:#c9c7bd}
+input[type=number]{font:inherit;width:90px;padding:8px;border:1px solid #c9c7bd;border-radius:8px}
+#msg{margin-top:10px;min-height:22px}
+#msg.bad{color:#c62828}
+#tag{display:inline-block;margin-top:14px;padding:3px 9px;border-radius:6px;background:#1c1c1a;color:#fff;font-size:13px}
+#live{font-size:34px;font-weight:600;margin:8px 0 0}
+pre{background:#fff;border:1px solid #c9c7bd;border-radius:8px;padding:10px;font-size:12px;white-space:pre-wrap}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}
+small{color:#6b6a63}
+</style></head><body>
+<h1>Compass tool demo</h1>
+<div class="bar">
+  <label id="shLab" class="off"><input type="checkbox" id="shadows"> Shadows</label>
+  <small id="shNote">needs a compass reading first: tap it</small>
+</div>
+<div id="panel">
+  <div><b>Which way does the front of the house face?</b><br><small>Stand with your back to the front wall. Hold the iPad flat, its top pointing away from the wall. Keep still.</small></div>
+  <div class="row"><button id="take">Take compass reading</button></div>
+  <div id="live"></div>
+  <div class="row"><span>or type it:</span><input type="number" id="deg" min="0" max="360" placeholder="0-360"><button class="plain" id="use">Use</button></div>
+  <div id="msg"></div>
+</div>
+<div><span id="tag" style="display:none"></span></div>
+<h1 style="margin-top:18px">How it would look on the canvas</h1>
+<canvas id="cv" width="340" height="200" style="width:340px;height:200px;background:#fff;border:1px solid #c9c7bd;border-radius:8px"></canvas>
+<h1 style="margin-top:18px">What would be saved</h1>
+<pre id="out">nothing yet</pre>
+<script>
+/* compass-tool.js : a compass reading for Plot view (George, 25 Nov 2026). Stands alone; nothing of the program is used.
+   CompassTool.take(options)   call it DIRECTLY in a tap's handler (Safari and Bluefy only ask for the sensor in a tap).
+                               Resolves to a reading (below). Never rejects.
+   CompassTool.typed(deg)      a reading typed in by hand (true north).
+   CompassTool.label(reading)  the words for the KEY, e.g. "Compass 214° SW" (no time, no accuracy).
+   CompassTool.note(reading)   the small note for the bottom of the canvas, e.g. "North from iPad compass ±8°, 25 Nov 2026 23:41".
+   CompassTool.drawNeedle(ctx, x, y, north, size, colour)   the symbol (draft G) on a canvas; needleSVG(...) the same in SVG.
+   A reading: { ok, reason, deg (TRUE north, 0-360, what to keep), magnetic, accuracy (± degrees, null if the device
+   gives none), spread (how much it wandered, degrees), samples, tilt, warn [], source 'compass'|'typed', at (ISO time) }
+   reason when not ok: 'unsupported' | 'denied' | 'nodata' | 'uncalibrated' | 'inaccurate' | 'unsteady' | 'badinput' */
+(function (root) {
+  'use strict';
+  const R = Math.PI / 180;
+  const norm = (d) => ((d % 360) + 360) % 360;
+  const diff = (a, b) => { const d = norm(a - b); return d > 180 ? d - 360 : d; };   // a - b, -180..180
+  function mean(list) {   // the mean of headings, and how far they spread (degrees)
+    let s = 0, c = 0; for (const h of list) { s += Math.sin(h * R); c += Math.cos(h * R); }
+    const n = list.length || 1, r = Math.hypot(s / n, c / n);
+    return { deg: norm(Math.atan2(s, c) / R), spread: r >= 1 ? 0 : Math.sqrt(-2 * Math.log(Math.max(r, 1e-9))) / R };
+  }
+  const POINTS = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+  const point = (d, n) => (n === 8 ? POINTS.filter((_, i) => i % 2 === 0)[Math.round(norm(d) / 45) % 8] : POINTS[Math.round(norm(d) / 22.5) % 16]);
+  function supported() { return typeof window !== 'undefined' && 'DeviceOrientationEvent' in window; }
+  function screenAngle() {
+    if (typeof window.orientation === 'number') return window.orientation;
+    return (screen.orientation && typeof screen.orientation.angle === 'number') ? screen.orientation.angle : 0;
+  }
+  function fail(reason, more) { return Object.assign({ ok: false, reason, deg: null, magnetic: null, accuracy: null, spread: null, samples: 0, tilt: null, warn: [], source: 'compass', at: new Date().toISOString() }, more || {}); }
+
+  async function take(opt) {
+    const o = Object.assign({ seconds: 2.5, maxAccuracy: 15, maxSpread: 10, maxTilt: 35, declination: 0, minSamples: 8, onSample: null }, opt || {});
+    if (!supported()) return fail('unsupported');
+    const D = window.DeviceOrientationEvent;
+    if (typeof D.requestPermission === 'function') {   // iPad and iPhone: asks once, and only inside a tap
+      let p = 'denied'; try { p = await D.requestPermission(); } catch (_) { p = 'denied'; }
+      if (p !== 'granted') return fail('denied');
+    }
+    return new Promise((done) => {
+      const H = [], A = [], T = []; let bad = 0, ios = false;
+      const on = (e) => {
+        let h = null, a = null;
+        if (typeof e.webkitCompassHeading === 'number' && !isNaN(e.webkitCompassHeading)) {   // iPad, iPhone: magnetic north
+          ios = true; h = e.webkitCompassHeading; a = e.webkitCompassAccuracy;
+          if (typeof a === 'number' && a < 0) { bad++; return; }   // the device says: not calibrated
+        } else if (!ios && e.absolute === true && typeof e.alpha === 'number') { h = 360 - e.alpha; }   // Android
+        if (h === null) return;
+        h = norm(h + screenAngle());   // the way the TOP OF THE SCREEN points, however the iPad is turned
+        H.push(h); if (typeof a === 'number') A.push(a);
+        if (typeof e.beta === 'number' && typeof e.gamma === 'number') T.push(Math.max(Math.abs(e.beta), Math.abs(e.gamma)));
+        if (o.onSample) { try { o.onSample(h, a); } catch (_) {} }
+      };
+      window.addEventListener('deviceorientation', on, true);
+      window.addEventListener('deviceorientationabsolute', on, true);
+      setTimeout(() => {
+        window.removeEventListener('deviceorientation', on, true);
+        window.removeEventListener('deviceorientationabsolute', on, true);
+        if (H.length < o.minSamples) return done(fail(bad > H.length ? 'uncalibrated' : 'nodata', { samples: H.length }));
+        const m = mean(H), acc = A.length ? Math.max.apply(null, A) : null, tilt = T.length ? T.reduce((x, y) => x + y, 0) / T.length : null;
+        const r = { ok: true, reason: '', deg: +norm(m.deg + o.declination).toFixed(1), magnetic: +m.deg.toFixed(1), accuracy: acc === null ? null : +acc.toFixed(1),
+          spread: +m.spread.toFixed(1), samples: H.length, tilt: tilt === null ? null : +tilt.toFixed(0), warn: [], source: 'compass', at: new Date().toISOString() };
+        if (bad > H.length) { r.ok = false; r.reason = 'uncalibrated'; }
+        else if (acc !== null && acc > o.maxAccuracy) { r.ok = false; r.reason = 'inaccurate'; }
+        else if (m.spread > o.maxSpread) { r.ok = false; r.reason = 'unsteady'; }
+        if (tilt !== null && tilt > o.maxTilt) r.warn.push('tilt');
+        if (acc === null) r.warn.push('noaccuracy');
+        done(r);
+      }, Math.max(0.5, o.seconds) * 1000);
+    });
+  }
+  function typed(v) {
+    const d = parseFloat(v);
+    if (!isFinite(d) || d < 0 || d > 360) return fail('badinput', { source: 'typed' });
+    return { ok: true, reason: '', deg: +norm(d).toFixed(1), magnetic: null, accuracy: null, spread: null, samples: 0, tilt: null, warn: [], source: 'typed', at: new Date().toISOString() };
+  }
+  /* the symbol George chose (draft G, 25 Nov): a slim needle, north half filled, south half outlined, N at its tip.
+     north: the angle on SCREEN that true north points to, degrees clockwise from straight up (the program knows it: the
+     map's or the plan's turn on screen). size: the needle's half length in px (20 is the draft's). Draws nothing else. */
+  function drawNeedle(g, x, y, north, size, col) {
+    const s = (size || 20) / 20; col = col || '#1c1c1a';
+    g.save(); g.translate(x, y); g.rotate((north || 0) * R); g.scale(s, s);
+    g.fillStyle = col; g.strokeStyle = col; g.lineWidth = 1; g.lineJoin = 'round';
+    g.beginPath(); g.moveTo(0, -20); g.lineTo(4, 0); g.lineTo(-4, 0); g.closePath(); g.fill();
+    g.beginPath(); g.moveTo(0, 20); g.lineTo(4, 0); g.lineTo(-4, 0); g.closePath(); g.stroke();
+    g.translate(0, -28); g.rotate(-(north || 0) * R);   // the N stays upright
+    g.font = '500 11px -apple-system, "Segoe UI", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('N', 0, 0);
+    g.restore();
+  }
+  /* the same symbol as SVG text, for anything drawn in SVG */
+  function needleSVG(north, size, col) {
+    const s = (size || 20) / 20; col = col || '#1c1c1a'; const n = +(north || 0).toFixed(1);
+    return '<g transform="scale(' + s + ') rotate(' + n + ')"><path d="M0,-20 L4,0 L-4,0 Z" fill="' + col + '"/><path d="M0,20 L4,0 L-4,0 Z" fill="none" stroke="' + col + '" stroke-width="1"/>'
+      + '<text x="0" y="-25" text-anchor="middle" font-size="11" font-weight="500" fill="' + col + '" transform="rotate(' + (-n) + ' 0 -28)">N</text></g>';
+  }
+  /* the small note for the bottom of the canvas, with the date and time the reading was taken */
+  function note(r) {
+    if (!r || r.deg === null) return '';
+    const d = new Date(r.at), M = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'], two = (v) => String(v).padStart(2, '0');
+    const when = d.getDate() + ' ' + M[d.getMonth()] + ' ' + d.getFullYear() + ' ' + two(d.getHours()) + ':' + two(d.getMinutes());
+    return (r.source === 'typed' ? 'North typed in, ' : 'North from iPad compass' + (r.accuracy !== null ? ' \u00B1' + Math.round(r.accuracy) + '\u00B0' : '') + ', ') + when;
+  }
+  function label(r) {
+    if (!r || r.deg === null) return '';
+    return 'Compass ' + Math.round(r.deg) % 360 + '\u00B0 ' + point(r.deg);
+  }
+  const SAY = {
+    unsupported: 'This device or browser has no compass a web page can read. Type the bearing in instead.',
+    denied: 'The compass was not allowed. Allow "Motion & Orientation" for this page, or type the bearing in.',
+    nodata: 'No compass reading came. The page must be opened from the web link (https), not from a file. Or type the bearing in.',
+    uncalibrated: 'The compass is not calibrated. Wave the iPad in a figure of eight, away from metal, then try again.',
+    inaccurate: 'The compass is not accurate enough here. Move away from metal, cars and radiators, wave the iPad in a figure of eight, and try again.',
+    unsteady: 'The reading moved about. Hold the iPad still and flat, and try again.',
+    badinput: 'Type a bearing from 0 to 360.',
+    tilt: 'Hold the iPad flatter for a better reading.',
+    noaccuracy: 'This device gives no accuracy figure for its compass.'
+  };
+  root.CompassTool = { take, typed, label, note, drawNeedle, needleSVG, point, mean, diff, norm, supported, SAY };
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+(function () {
+  const $ = (i) => document.getElementById(i), C = CompassTool; let kept = null;
+  function show(r) {
+    const msg = $('msg'); let t = '', bad = false;
+    if (!r.ok) { t = C.SAY[r.reason] || r.reason; bad = true; if (r.deg !== null) t += ' (it read ' + C.label(r) + ')'; }
+    else {
+      kept = r; t = 'Kept: ' + C.label(r) + '. ' + r.warn.map((k) => C.SAY[k]).join(' ');
+      $('tag').textContent = C.label(r); $('tag').style.display = '';
+      $('shLab').className = ''; $('shadows').checked = true; $('shNote').textContent = 'on, from the reading'; paint(r);
+    }
+    msg.textContent = t; msg.className = bad ? 'bad' : '';
+    $('out').textContent = JSON.stringify(bad ? r : kept, null, 1);
+  }
+  function paint(r) {   // the plan drawn front-down: north on screen is the reading's bearing taken from 180
+    const cv = $('cv'), g = cv.getContext('2d'), dpr = window.devicePixelRatio || 1;
+    cv.width = 340 * dpr; cv.height = 200 * dpr; g.scale(dpr, dpr); g.clearRect(0, 0, 340, 200);
+    g.strokeStyle = '#9a988f'; g.setLineDash([3, 3]); g.strokeRect(110, 30, 120, 80); g.setLineDash([]);
+    g.fillStyle = '#1c1c1a'; g.fillRect(14, 172, 30, 4); g.strokeRect(44, 172, 30, 4); g.fillRect(74, 172, 30, 4);
+    g.font = '11px -apple-system, sans-serif'; g.fillText('0', 14, 166); g.textAlign = 'right'; g.fillText('3 m', 104, 166); g.textAlign = 'left';
+    CompassTool.drawNeedle(g, 36, 128, 180 - r.deg, 20, '#1c1c1a');
+    g.fillStyle = '#6b6a63'; g.textAlign = 'center'; g.fillText(CompassTool.note(r), 170, 194); g.textAlign = 'left';
+  }
+  // Shadows is greyed until there is a reading: a tap on it brings up the compass
+  $('shadows').addEventListener('click', (e) => { if (!kept) { e.preventDefault(); $('panel').style.display = 'block'; } });
+  $('take').addEventListener('click', () => {   // take() is called straight in the tap
+    $('msg').textContent = 'Reading... hold still'; $('msg').className = '';
+    C.take({ seconds: 2.5, maxAccuracy: 15, declination: 0, onSample: (h, a) => { $('live').textContent = Math.round(h) + '\u00B0 ' + C.point(h) + (typeof a === 'number' ? '  \u00B1' + Math.round(a) + '\u00B0' : ''); } }).then(show);
+  });
+  $('use').addEventListener('click', () => show(C.typed($('deg').value)));
+})();
+</script>
+</body></html>
